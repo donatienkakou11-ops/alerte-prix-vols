@@ -54,8 +54,18 @@ app.get('/api/latest-prices', async (req, res) => {
       count: (data || []).length
     });
   } catch (err) {
+    console.log('❌ Error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API is working!',
+    supabaseURL: process.env.SUPABASE_URL ? 'Set ✅' : 'Not set ❌'
+  });
 });
 
 // 404 handler
