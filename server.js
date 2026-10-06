@@ -35,24 +35,29 @@ app.get('/api/alerts', (req, res) => {
   res.json({ message: 'Alerts endpoint' });
 });
 
-// Get latest prices (test data for now)
-app.get('/api/latest-prices', (req, res) => {
-  const now = new Date().toISOString();
+// Get latest prices from Supabase
+app.get('/api/latest-prices', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('prices')
+      .select('*')
+      .order('scraped_at', { ascending: false })
+      .limit(100);
 
-  const mockData = [
-    { route_id: '042dba06-80e6-4960-a8fd-cfecfe5d0273', departure_city: 'Abidjan', arrival_city: 'Casablanca', airline: 'Air Maroc', cabin_class: 'ECONOMY', price: 450, currency: 'XOF', scraped_at: now },
-    { route_id: 'a0123868-334f-4267-88be-1ff3631d70b3', departure_city: 'Abidjan', arrival_city: 'Paris', airline: 'Air France', cabin_class: 'ECONOMY', price: 511, currency: 'XOF', scraped_at: now },
-    { route_id: 'a0123868-334f-4267-88be-1ff3631d70b3', departure_city: 'Abidjan', arrival_city: 'Paris', airline: 'Emirates', cabin_class: 'PREMIUM_ECONOMY', price: 1042, currency: 'XOF', scraped_at: now },
-    { route_id: 'e2c07cee-09a3-438d-8c68-b144393cab1f', departure_city: 'Abidjan', arrival_city: 'Brussels', airline: 'Ethiopian Airlines', cabin_class: 'ECONOMY', price: 516, currency: 'XOF', scraped_at: now },
-    { route_id: 'e2c07cee-09a3-438d-8c68-b144393cab1f', departure_city: 'Abidjan', arrival_city: 'Brussels', airline: 'Ethiopian Airlines', cabin_class: 'PREMIUM_ECONOMY', price: 1204, currency: 'XOF', scraped_at: now },
-  ];
+    if (error) {
+      console.log('❌ Supabase error:', error);
+      return res.status(500).json({ error: error.message });
+    }
 
-  res.json({
-    success: true,
-    data: mockData,
-    count: mockData.length,
-    note: 'Test data (Supabase debugging)'
-  });
+    res.json({
+      success: true,
+      data: data || [],
+      count: (data || []).length
+    });
+  } catch (err) {
+    console.log('❌ API Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Test endpoint
