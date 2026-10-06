@@ -35,6 +35,41 @@ app.get('/api/alerts', (req, res) => {
   res.json({ message: 'Alerts endpoint' });
 });
 
+// TEST: Vérifier la connexion à Supabase
+app.get('/api/test-supabase', async (req, res) => {
+  try {
+    const testUrl = process.env.SUPABASE_URL + '/rest/v1/';
+    console.log('🧪 Testing Supabase connection to:', testUrl);
+    
+    const response = await fetch(testUrl, {
+      method: 'HEAD',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.SUPABASE_SERVICE_KEY,
+        'apikey': process.env.SUPABASE_SERVICE_KEY,
+      }
+    });
+    
+    console.log('✅ Supabase connection test - Status:', response.status);
+    
+    res.json({
+      connection: 'SUCCESS ✅',
+      status: response.status,
+      statusText: response.statusText,
+      supabaseUrl: process.env.SUPABASE_URL,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.log('❌ Supabase connection test failed:', err.message);
+    res.json({
+      connection: 'FAILED ❌',
+      error: err.message,
+      errorType: err.code || 'Unknown',
+      supabaseUrl: process.env.SUPABASE_URL,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get latest prices from Supabase (using REST API)
 app.get('/api/latest-prices', async (req, res) => {
   try {
