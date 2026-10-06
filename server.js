@@ -1,7 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
 const { startPriceScraper } = require('./priceScraperJob');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 const app = express();
 
@@ -27,6 +33,29 @@ app.get('/api/prices/:route_id', (req, res) => {
 
 app.get('/api/alerts', (req, res) => {
   res.json({ message: 'Alerts endpoint' });
+});
+
+// Get latest prices from Supabase
+app.get('/api/latest-prices', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('prices')
+      .select('*')
+      .order('scraped_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({
+      success: true,
+      data: data || [],
+      count: (data || []).length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 404 handler
