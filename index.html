@@ -195,16 +195,46 @@
         const { useState, useEffect } = React;
 
         function FlightDashboard() {
-            const prices = [
-                { route: 'Abidjan → Paris', airline: 'Air France', cabin: 'ECONOMY', price: 511, currency: 'XOF' },
-                { route: 'Abidjan → Paris', airline: 'Emirates', cabin: 'PREMIUM_ECONOMY', price: 1042, currency: 'XOF' },
-                { route: 'Abidjan → Paris', airline: 'Emirates', cabin: 'BUSINESS', price: 2712, currency: 'XOF' },
-                { route: 'Abidjan → Brussels', airline: 'Ethiopian Airlines', cabin: 'ECONOMY', price: 516, currency: 'XOF' },
-                { route: 'Abidjan → Brussels', airline: 'Ethiopian Airlines', cabin: 'PREMIUM_ECONOMY', price: 1204, currency: 'XOF' },
-                { route: 'Abidjan → Brussels', airline: 'Ethiopian Airlines', cabin: 'BUSINESS', price: 1827, currency: 'XOF' },
-                { route: 'Abidjan → Casablanca', airline: 'Air France', cabin: 'ECONOMY', price: 450, currency: 'XOF' },
-                { route: 'Abidjan → Casablanca', airline: 'Lufthansa', cabin: 'PREMIUM_ECONOMY', price: 900, currency: 'XOF' },
-            ];
+            const [prices, setPrices] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const fetchPrices = async () => {
+                    try {
+                        // Remplace par ton URL Render
+                        const API_URL = 'https://alerte-prix-vols.onrender.com/api/latest-prices';
+                        const response = await fetch(API_URL);
+                        const result = await response.json();
+
+                        if (result.success && result.data) {
+                            const formatted = result.data.map(p => ({
+                                route: p.departure_city && p.arrival_city ?
+                                    p.departure_city + ' → ' + p.arrival_city : 'Unknown',
+                                airline: p.airline || 'Unknown',
+                                cabin: p.cabin_class || 'Economy',
+                                price: p.price || 0,
+                                currency: p.currency || 'XOF'
+                            }));
+                            setPrices(formatted);
+                        }
+                    } catch (error) {
+                        console.error('Erreur API:', error);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                fetchPrices();
+            }, []);
+
+            if (loading) {
+                return React.createElement('div', { className: 'container' },
+                    React.createElement('div', { className: 'header' },
+                        React.createElement('h1', { className: 'title' }, '✈️ Flight Price Monitor'),
+                        React.createElement('p', { className: 'subtitle' }, 'Chargement des données...')
+                    )
+                );
+            }
 
             const groupedPrices = {};
             prices.forEach(price => {
