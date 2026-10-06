@@ -35,19 +35,26 @@ app.get('/api/alerts', (req, res) => {
   res.json({ message: 'Alerts endpoint' });
 });
 
-// Get latest prices from Supabase
+// Get latest prices from Supabase (using REST API)
 app.get('/api/latest-prices', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('prices')
-      .select('*')
-      .order('scraped_at', { ascending: false })
-      .limit(100);
+    const apiUrl = process.env.SUPABASE_URL + '/rest/v1/prices?order=scraped_at.desc&limit=100';
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + process.env.SUPABASE_SERVICE_KEY,
+        'apikey': process.env.SUPABASE_SERVICE_KEY,
+        'Content-Type': 'application/json',
+      }
+    });
 
-    if (error) {
-      console.log('❌ Supabase error:', error);
-      return res.status(500).json({ error: error.message });
+    if (!response.ok) {
+      console.log('❌ Supabase REST API error:', response.status, response.statusText);
+      const errorData = await response.json().catch(() => ({}));
+      return res.status(response.status).json({ error: errorData.message || 'Supabase error' });
     }
+
+    const data = await response.json();
+    console.log('✅ Got ' + data.length + ' prices from Supabase');
 
     res.json({
       success: true,
