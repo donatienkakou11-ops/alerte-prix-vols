@@ -336,6 +336,61 @@ function parseGoogleFlights(json, from, to, cabinName) {
 
 // Vrais prix : /api/live-search?from=Abidjan&to=Paris&date=2026-11-15&return=2026-11-30&cabin=ECONOMY
 // Chaque nouvelle recherche consomme 1 recherche SerpApi (250 gratuites par mois).
+// Recherche Google Flights (utilisee par la page et par la surveillance).
+// Renvoie { data, google_flights_url, ... } ou leve une erreur.
+async function searchGoogleFlights(from, to, date, returnDate, cabin) {
+  const key = [from.code, to.code, date, returnDate || '', cabin].join('|');
+  const cached = liveCache[key];
+  if (cached && Date.now() - cached.time < LIVE_CACHE_HOURS * 3600 * 1000) {
+    return Object.assign({}, cached.body, { from_cache: true });
+  }
+
+  const params = new URLSearchParams({
+    engine: 'google_flights',
+    departure_id: from.code,
+    arrival_id: to.code,
+    outbound_date: date,
+    type: returnDate ? '1' : '2', // 1 = aller-retour, 2 = aller simple
+    travel_class: String(SERPAPI_CLASS[cabin]),
+    currency: 'EUR',
+    hl: 'fr',
+    api_key: SERPAPI_KEY
+  });
+  if (returnDate) params.set('return_date', returnDate);
+
+  const response = await fetch('https://serpapi.com/search.json?' + params.toString());
+  const json = await response.json();
+  let data = [];
+
+  if (!response.ok || json.error) {
+    // "no results" n'est pas une panne : simplement aucun vol
+    if (!String(json.error || '').toLowerCase().includes('no results')) {
+      throw new Error('Google Flights : ' + (json.error || 'erreur ' + response.status));
+    }
+  } else {
+    data = parseGoogleFlights(json, from, to, cabin);
+  }
+
+  const body = {
+    success: true,
+    live: true,
+    from: from.city,
+    to: to.city,
+    date: date,
+    return_date: returnDate || null,
+    trip: returnDate ? 'aller-retour' : 'aller simple',
+    data: data,
+    count: data.length,
+    google_flights_url: json.search_metadata && json.search_metadata.google_flights_url,
+    searched_at: new Date().toISOString()
+  };
+  liveCache[key] = { time: Date.now(), body: body };
+  console.log('✅ Google Flights ' + from.code + '-' + to.code + ' ' + date + ' : ' + data.length + ' vols');
+  return body;
+}
+
+// Vrais prix : /api/live-search?from=Abidjan&to=Paris&date=2026-11-15&return=2026-11-30&cabin=ECONOMY
+// Chaque nouvelle recherche consomme 1 recherche SerpApi (250 gratuites par mois).
 app.get('/api/live-search', async (req, res) => {
   if (!SERPAPI_KEY) {
     return res.status(503).json({ error: 'Clé SerpApi absente : ajoutez SERPAPI_KEY dans Render > Environment' });
@@ -353,58 +408,158 @@ app.get('/api/live-search', async (req, res) => {
     return res.status(400).json({ error: 'Date de retour invalide' });
   }
 
-  const key = [from.code, to.code, date, returnDate || '', cabin].join('|');
-  const cached = liveCache[key];
-  if (cached && Date.now() - cached.time < LIVE_CACHE_HOURS * 3600 * 1000) {
-    return res.json(Object.assign({}, cached.body, { from_cache: true }));
-  }
-
-  const params = new URLSearchParams({
-    engine: 'google_flights',
-    departure_id: from.code,
-    arrival_id: to.code,
-    outbound_date: date,
-    type: returnDate ? '1' : '2', // 1 = aller-retour, 2 = aller simple
-    travel_class: String(SERPAPI_CLASS[cabin]),
-    currency: 'EUR',
-    hl: 'fr',
-    api_key: SERPAPI_KEY
-  });
-  if (returnDate) params.set('return_date', returnDate);
-
   try {
-    const response = await fetch('https://serpapi.com/search.json?' + params.toString());
-    const json = await response.json();
-
-    if (!response.ok || json.error) {
-      console.log('❌ SerpApi :', json.error || response.status);
-      // "no results" n'est pas une panne : on renvoie une liste vide
-      if (String(json.error || '').toLowerCase().includes('no results')) {
-        return res.json({ success: true, live: true, data: [], count: 0, trip: returnDate ? 'aller-retour' : 'aller simple' });
-      }
-      return res.status(502).json({ error: 'Google Flights : ' + (json.error || 'erreur ' + response.status) });
-    }
-
-    const data = parseGoogleFlights(json, from, to, cabin);
-    const body = {
-      success: true,
-      live: true,
-      from: from.city,
-      to: to.city,
-      date: date,
-      return_date: returnDate || null,
-      trip: returnDate ? 'aller-retour' : 'aller simple',
-      data: data,
-      count: data.length,
-      google_flights_url: json.search_metadata && json.search_metadata.google_flights_url,
-      searched_at: new Date().toISOString()
-    };
-    liveCache[key] = { time: Date.now(), body: body };
-    console.log('✅ Google Flights ' + from.code + '-' + to.code + ' ' + date + ' : ' + data.length + ' vols');
-    res.json(body);
+    res.json(await searchGoogleFlights(from, to, date, returnDate, cabin));
   } catch (err) {
-    console.log('❌ SerpApi injoignable :', err.message);
-    res.status(502).json({ error: 'Impossible de joindre SerpApi : ' + err.message });
+    console.log('❌ SerpApi :', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// =====================================================================
+// SURVEILLANCE AUTOMATIQUE des trajets les plus vendus
+// - un trajet est verifie tous les 2 jours (8 trajets = ~120 recherches / mois)
+// - date de vol surveillee : depart dans 21 jours, aller simple, economique
+// - alerte si le meilleur prix baisse d'au moins 10 % depuis la verification precedente
+// - l'historique est garde dans Supabase (projet "Alerte Prix Vols")
+// =====================================================================
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const WATCH_EVERY_HOURS = 48;
+const WATCH_DAYS_AHEAD = 21;
+const ALERT_DROP_PERCENT = 10;
+
+// Petit client pour l'API REST de Supabase
+async function db(path, options) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Supabase non configuré (SUPABASE_URL / SUPABASE_SERVICE_KEY)');
+  const response = await fetch(SUPABASE_URL + '/rest/v1/' + path, Object.assign({}, options, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation'
+    }
+  }));
+  const text = await response.text();
+  if (!response.ok) throw new Error('Supabase ' + response.status + ' : ' + text);
+  return text ? JSON.parse(text) : null;
+}
+
+function routeFilter(from, to) {
+  return 'route_from=eq.' + encodeURIComponent(from) + '&route_to=eq.' + encodeURIComponent(to);
+}
+
+// Les 2 dernieres verifications d'un trajet
+async function lastChecks(from, to) {
+  return db('price_checks?select=*&' + routeFilter(from, to) + '&order=checked_at.desc&limit=2');
+}
+
+async function checkRoute(fromName, toName) {
+  const from = findCity(fromName);
+  const to = findCity(toName);
+  const travelDate = new Date(Date.now() + WATCH_DAYS_AHEAD * 86400000).toISOString().slice(0, 10);
+
+  const previous = (await lastChecks(from.city, to.city))[0];
+  const result = await searchGoogleFlights(from, to, travelDate, null, 'ECONOMY');
+  const best = result.data[0];
+
+  await db('price_checks', {
+    method: 'POST',
+    body: JSON.stringify({
+      route_from: from.city,
+      route_to: to.city,
+      travel_date: travelDate,
+      cabin: 'ECONOMY',
+      min_price: best ? best.price : null,
+      min_airline: best ? best.airline : null,
+      offers_count: result.data.length
+    })
+  });
+
+  if (best && previous && previous.min_price) {
+    const drop = Math.round(((previous.min_price - best.price) / previous.min_price) * 100);
+    if (drop >= ALERT_DROP_PERCENT) {
+      await db('price_alerts', {
+        method: 'POST',
+        body: JSON.stringify({
+          route_from: from.city,
+          route_to: to.city,
+          travel_date: travelDate,
+          airline: best.airline,
+          old_price: previous.min_price,
+          new_price: best.price,
+          drop_percent: drop
+        })
+      });
+      console.log('📉 ALERTE ' + from.city + ' → ' + to.city + ' : -' + drop + ' %');
+    }
+  }
+  return best;
+}
+
+let watchRunning = false;
+
+// Verifie UN trajet : celui dont la derniere verification est la plus ancienne,
+// seulement s'il n'a pas ete verifie depuis 48 h (sinon ne fait rien et ne coute rien).
+async function runWatchCycle() {
+  if (!SERPAPI_KEY || !SUPABASE_URL || !SUPABASE_KEY || watchRunning) return { checked: null };
+  watchRunning = true;
+  try {
+    let oldest = null;
+    for (const r of TOP_ROUTES) {
+      const last = (await lastChecks(r[0], r[1]))[0];
+      const time = last ? new Date(last.checked_at).getTime() : 0;
+      if (!oldest || time < oldest.time) oldest = { route: r, time: time };
+    }
+    // Marge de 6 h pour que le cycle de 6 h ne "rate" pas l'echeance
+    if (!oldest || Date.now() - oldest.time < (WATCH_EVERY_HOURS - 6) * 3600 * 1000) {
+      return { checked: null, message: 'Rien à vérifier pour le moment' };
+    }
+    const best = await checkRoute(oldest.route[0], oldest.route[1]);
+    return { checked: oldest.route[0] + ' → ' + oldest.route[1], best_price: best ? best.price : null };
+  } finally {
+    watchRunning = false;
+  }
+}
+
+// A appeler toutes les 6 h par un service externe (cron-job.org) :
+// cela reveille le serveur Render gratuit et lance la verification.
+app.get('/api/watch/run', async (req, res) => {
+  try {
+    res.json(Object.assign({ success: true }, await runWatchCycle()));
+  } catch (err) {
+    console.log('❌ Surveillance :', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Etat des trajets surveilles, pour la page
+app.get('/api/watch', async (req, res) => {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.json({ enabled: false, data: [] });
+  try {
+    const data = [];
+    for (const r of TOP_ROUTES) {
+      const checks = await lastChecks(r[0], r[1]);
+      const last = checks[0];
+      const prev = checks[1];
+      data.push({
+        from: r[0],
+        to: r[1],
+        min_price: last ? last.min_price : null,
+        airline: last ? last.min_airline : null,
+        travel_date: last ? last.travel_date : null,
+        checked_at: last ? last.checked_at : null,
+        previous_price: prev ? prev.min_price : null,
+        change_percent: last && prev && last.min_price && prev.min_price
+          ? Math.round(((last.min_price - prev.min_price) / prev.min_price) * 100) : null
+      });
+    }
+    const alerts = await db('price_alerts?select=*&order=created_at.desc&limit=10');
+    res.json({ enabled: true, data: data, alerts: alerts });
+  } catch (err) {
+    console.log('❌ Surveillance :', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -444,6 +599,10 @@ generateOffers();
 
 // Nouveaux prix toutes les 6 heures
 cron.schedule('0 */6 * * *', generateOffers);
+
+// Surveillance : essai toutes les 6 h (+ au demarrage), si le serveur est reveille
+cron.schedule('30 */6 * * *', () => { runWatchCycle().catch((e) => console.log('❌ Surveillance :', e.message)); });
+setTimeout(() => { runWatchCycle().catch((e) => console.log('❌ Surveillance :', e.message)); }, 10000);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
