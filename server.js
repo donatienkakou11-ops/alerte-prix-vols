@@ -364,7 +364,7 @@ async function searchGoogleFlights(from, to, date, returnDate, cabin) {
 
   if (!response.ok || json.error) {
     // "no results" n'est pas une panne : simplement aucun vol
-    if (!String(json.error || '').toLowerCase().includes('no results')) {
+    if (!/no results|any results/i.test(String(json.error || ''))) {
       throw new Error('Google Flights : ' + (json.error || 'erreur ' + response.status));
     }
   } else {
@@ -455,14 +455,64 @@ async function lastChecks(from, to) {
   return db('price_checks?select=*&' + routeFilter(from, to) + '&order=checked_at.desc&limit=2');
 }
 
+// ==================== MESSAGE WHATSAPP (CallMeBot, gratuit) ====================
+// Reglages Render : CALLMEBOT_PHONE (ex : 2250700000000, sans +) et CALLMEBOT_APIKEY.
+// Sans ces reglages, les alertes restent seulement sur la page.
+const CALLMEBOT_PHONE = process.env.CALLMEBOT_PHONE;
+const CALLMEBOT_APIKEY = process.env.CALLMEBOT_APIKEY;
+
+async function sendWhatsApp(text) {
+  if (!CALLMEBOT_PHONE || !CALLMEBOT_APIKEY) return false;
+  const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(CALLMEBOT_PHONE) +
+    '&text=' + encodeURIComponent(text) + '&apikey=' + encodeURIComponent(CALLMEBOT_APIKEY);
+  try {
+    const response = await fetch(url);
+    const body = await response.text();
+    const ok = response.ok && !/error|invalid/i.test(body.slice(0, 300));
+    if (!ok) console.log('❌ WhatsApp :', response.status, body.slice(0, 200));
+    return ok;
+  } catch (err) {
+    console.log('❌ WhatsApp injoignable :', err.message);
+    return false;
+  }
+}
+
+function fcfa(n) {
+  return Number(n).toLocaleString('fr-FR').replace(/ | /g, ' ') + ' FCFA';
+}
+
+function alertText(a) {
+  const route = a.route_from + ' → ' + a.route_to;
+  const date = a.travel_date.split('-').reverse().join('/');
+  if (a.kind === 'ouverture') return '🟢 VOL OUVERT ' + route + ' : ' + a.airline + ' apparaît (vol du ' + date + '), à partir de ' + fcfa(a.new_price);
+  if (a.kind === 'fermeture') return '🔴 VOL FERMÉ ' + route + ' : ' + a.airline + ' n\'est plus proposée (vol du ' + date + '). À vérifier sur Amadeus.';
+  return '📉 PRIX EN BAISSE ' + route + ' : -' + a.drop_percent + ' % · ' + fcfa(a.old_price) + ' → ' + fcfa(a.new_price) + ' (' + a.airline + ', vol du ' + date + ')';
+}
+
+// Compagnies presentes dans les resultats (un vol "A + B" compte pour A et pour B)
+function airlinesOf(offers) {
+  const set = new Set();
+  offers.forEach((o) => String(o.airline || '').split(' + ').forEach((n) => { if (n) set.add(n); }));
+  return Array.from(set).sort();
+}
+
+function cheapestFor(offers, airline) {
+  const found = offers.filter((o) => String(o.airline).split(' + ').includes(airline));
+  return found.length ? found[0].price : null;
+}
+
 async function checkRoute(fromName, toName) {
   const from = findCity(fromName);
   const to = findCity(toName);
   const travelDate = new Date(Date.now() + WATCH_DAYS_AHEAD * 86400000).toISOString().slice(0, 10);
 
-  const previous = (await lastChecks(from.city, to.city))[0];
+  const history = await lastChecks(from.city, to.city);
+  const prev1 = history[0]; // verification precedente
+  const prev2 = history[1]; // celle d'avant
   const result = await searchGoogleFlights(from, to, travelDate, null, 'ECONOMY');
-  const best = result.data[0];
+  const offers = result.data; // deja tries du moins cher au plus cher
+  const best = offers[0];
+  const airlines = airlinesOf(offers);
 
   await db('price_checks', {
     method: 'POST',
@@ -473,27 +523,44 @@ async function checkRoute(fromName, toName) {
       cabin: 'ECONOMY',
       min_price: best ? best.price : null,
       min_airline: best ? best.airline : null,
-      offers_count: result.data.length
+      offers_count: offers.length,
+      airlines: airlines
     })
   });
 
-  if (best && previous && previous.min_price) {
-    const drop = Math.round(((previous.min_price - best.price) / previous.min_price) * 100);
+  const base = { route_from: from.city, route_to: to.city, travel_date: travelDate };
+  const alerts = [];
+
+  // 📉 Baisse de prix
+  if (best && prev1 && prev1.min_price) {
+    const drop = Math.round(((prev1.min_price - best.price) / prev1.min_price) * 100);
     if (drop >= ALERT_DROP_PERCENT) {
-      await db('price_alerts', {
-        method: 'POST',
-        body: JSON.stringify({
-          route_from: from.city,
-          route_to: to.city,
-          travel_date: travelDate,
-          airline: best.airline,
-          old_price: previous.min_price,
-          new_price: best.price,
-          drop_percent: drop
-        })
-      });
-      console.log('📉 ALERTE ' + from.city + ' → ' + to.city + ' : -' + drop + ' %');
+      alerts.push(Object.assign({ kind: 'baisse', airline: best.airline, old_price: prev1.min_price, new_price: best.price, drop_percent: drop }, base));
     }
+  }
+
+  // On ne compare les compagnies que si les recherches ont bien trouve des vols
+  // (une recherche vide = probleme passager, pas une fermeture generale).
+  const prev1Ok = prev1 && Array.isArray(prev1.airlines) && prev1.offers_count > 0;
+  const prev2Ok = prev2 && Array.isArray(prev2.airlines) && prev2.offers_count > 0;
+
+  if (offers.length > 0 && prev1Ok) {
+    // 🟢 Ouverture : presente maintenant, absente la fois precedente
+    airlines.filter((n) => !prev1.airlines.includes(n)).forEach((n) => {
+      alerts.push(Object.assign({ kind: 'ouverture', airline: n, new_price: cheapestFor(offers, n) }, base));
+    });
+    // 🔴 Fermeture : presente il y a 2 verifications, absente les 2 dernieres fois
+    if (prev2Ok) {
+      prev2.airlines.filter((n) => !prev1.airlines.includes(n) && !airlines.includes(n)).forEach((n) => {
+        alerts.push(Object.assign({ kind: 'fermeture', airline: n }, base));
+      });
+    }
+  }
+
+  for (const a of alerts) {
+    a.whatsapp_sent = await sendWhatsApp(alertText(a));
+    await db('price_alerts', { method: 'POST', body: JSON.stringify(a) });
+    console.log('🔔 ' + alertText(a));
   }
   return best;
 }
@@ -532,6 +599,15 @@ app.get('/api/watch/run', async (req, res) => {
     console.log('❌ Surveillance :', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Test du message WhatsApp : ouvrir /api/whatsapp/test dans le navigateur
+app.get('/api/whatsapp/test', async (req, res) => {
+  if (!CALLMEBOT_PHONE || !CALLMEBOT_APIKEY) {
+    return res.status(503).json({ error: 'Ajoutez CALLMEBOT_PHONE et CALLMEBOT_APIKEY dans Render > Environment' });
+  }
+  const ok = await sendWhatsApp('✅ Alerte Prix Vols : les messages WhatsApp fonctionnent.');
+  res.json({ success: ok });
 });
 
 // Etat des trajets surveilles, pour la page
