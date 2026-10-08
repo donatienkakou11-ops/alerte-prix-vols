@@ -40,6 +40,7 @@ const CITIES = [
   { city: 'Paris', country: 'France', code: 'CDG', lat: 49.01, lon: 2.55 },
   { city: 'Bruxelles', country: 'Belgique', code: 'BRU', lat: 50.9, lon: 4.48 },
   { city: 'Londres', country: 'Royaume-Uni', code: 'LHR', lat: 51.47, lon: -0.45 },
+  { city: 'Manchester', country: 'Royaume-Uni', code: 'MAN', lat: 53.35, lon: -2.27 },
   { city: 'Lisbonne', country: 'Portugal', code: 'LIS', lat: 38.77, lon: -9.13 },
   { city: 'Madrid', country: 'Espagne', code: 'MAD', lat: 40.47, lon: -3.56 },
   { city: 'Rome', country: 'Italie', code: 'FCO', lat: 41.8, lon: 12.25 },
@@ -63,13 +64,13 @@ const EUROPE = ['Paris', 'Bruxelles', 'Londres', 'Lisbonne', 'Madrid', 'Rome', '
 const AIRLINES = [
   { name: "Air Côte d'Ivoire", hub: 'Abidjan', cities: ['Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Casablanca', 'Paris'] },
   { name: 'ASKY Airlines', hub: 'Lomé', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Kinshasa', 'Johannesburg'] },
-  { name: 'Royal Air Maroc', hub: 'Casablanca', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Kinshasa', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Doha', 'Djeddah', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Air France', hub: 'Paris', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Brussels Airlines', hub: 'Bruxelles', cities: ['Abidjan', 'Dakar', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Conakry', 'Monrovia', 'Douala', 'Kinshasa', 'Nairobi', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Turkish Airlines', hub: 'Istanbul', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Dubaï', 'Doha', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Ethiopian Airlines', hub: 'Addis-Abeba', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Nairobi', 'Johannesburg', 'Le Caire', 'Paris', 'Bruxelles', 'Londres', 'Madrid', 'Rome', 'Francfort', 'Genève', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York'] },
-  { name: 'Emirates', hub: 'Dubaï', cities: ['Abidjan', 'Dakar', 'Accra', 'Lagos', 'Conakry', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Qatar Airways', hub: 'Doha', cities: ['Abidjan', 'Accra', 'Lagos', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
+  { name: 'Royal Air Maroc', hub: 'Casablanca', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Kinshasa', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Doha', 'Djeddah', 'New York', 'Montréal'].concat(EUROPE) },
+  { name: 'Air France', hub: 'Paris', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
+  { name: 'Brussels Airlines', hub: 'Bruxelles', cities: ['Manchester', 'Abidjan', 'Dakar', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Conakry', 'Monrovia', 'Douala', 'Kinshasa', 'Nairobi', 'New York', 'Montréal'].concat(EUROPE) },
+  { name: 'Turkish Airlines', hub: 'Istanbul', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Dubaï', 'Doha', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
+  { name: 'Ethiopian Airlines', hub: 'Addis-Abeba', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Nairobi', 'Johannesburg', 'Le Caire', 'Paris', 'Bruxelles', 'Londres', 'Madrid', 'Rome', 'Francfort', 'Genève', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York'] },
+  { name: 'Emirates', hub: 'Dubaï', cities: ['Manchester', 'Abidjan', 'Dakar', 'Accra', 'Lagos', 'Conakry', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
+  { name: 'Qatar Airways', hub: 'Doha', cities: ['Manchester', 'Abidjan', 'Accra', 'Lagos', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
   { name: 'Kenya Airways', hub: 'Nairobi', cities: ['Abidjan', 'Dakar', 'Accra', 'Lagos', 'Monrovia', 'Douala', 'Kinshasa', 'Addis-Abeba', 'Johannesburg', 'Paris', 'Londres', 'Dubaï', 'Guangzhou', 'New York'] },
   { name: 'EgyptAir', hub: 'Le Caire', cities: ['Abidjan', 'Accra', 'Lagos', 'Douala', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Istanbul', 'Dubaï', 'Doha', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
   { name: 'TAP Air Portugal', hub: 'Lisbonne', cities: ['Abidjan', 'Dakar', 'Accra', 'Conakry', 'Casablanca', 'Paris', 'Bruxelles', 'Londres', 'Madrid', 'Rome', 'Francfort', 'Genève', 'New York', 'Montréal'] },
@@ -83,6 +84,14 @@ const AIRLINES = [
   { name: 'Corsair', hub: 'Paris', cities: ['Abidjan', 'Bamako', 'Cotonou'] },
   { name: 'Camair-Co', hub: 'Douala', cities: ['Abidjan', 'Cotonou', 'Lagos', 'Libreville'] },
   { name: 'Africa World Airlines', hub: 'Accra', cities: ['Abidjan', 'Lagos', 'Monrovia'] }
+];
+
+// Trajets les plus vendus par l'agence (raccourcis sur la page)
+const TOP_ROUTES = [
+  ['Abidjan', 'Casablanca'], ['Casablanca', 'Abidjan'],
+  ['Abidjan', 'Paris'], ['Paris', 'Abidjan'],
+  ['Dakar', 'Casablanca'], ['Bamako', 'Casablanca'],
+  ['Abidjan', 'Manchester'], ['Manchester', 'Abidjan']
 ];
 
 const CABINS = [
@@ -216,6 +225,10 @@ app.get('/api/destinations', (req, res) => {
   res.json({ success: true, data: data, count: data.length });
 });
 
+app.get('/api/top-routes', (req, res) => {
+  res.json({ success: true, data: TOP_ROUTES.map((r) => ({ from: r[0], to: r[1] })) });
+});
+
 // Recherche : /api/search?from=Casablanca&to=Conakry&cabin=ECONOMY
 app.get('/api/search', (req, res) => {
   const from = findCity(req.query.from);
@@ -255,6 +268,160 @@ app.get('/api/deals', (req, res) => {
     .slice(0, 12);
 
   res.json({ success: true, demo: true, data: deals, count: deals.length, updated_at: lastUpdate });
+});
+
+// =====================================================================
+// VRAIS PRIX : Google Flights via SerpApi
+// La cle est lue dans les reglages Render (variable SERPAPI_KEY),
+// jamais ecrite dans le code ni sur GitHub.
+// =====================================================================
+
+const SERPAPI_KEY = process.env.SERPAPI_KEY;
+const EUR_TO_FCFA = 655.957; // taux fixe officiel euro / franc CFA
+const LIVE_CACHE_HOURS = 6;  // une meme recherche n'est refaite qu'apres 6 h
+const liveCache = {};
+
+const SERPAPI_CLASS = { ECONOMY: 1, PREMIUM_ECONOMY: 2, BUSINESS: 3 };
+
+function isDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+// Transforme une reponse Google Flights en offres pour la page
+function parseGoogleFlights(json, from, to, cabinName) {
+  const cabin = CABINS.find((c) => c.name === cabinName) || CABINS[0];
+  const all = (json.best_flights || []).concat(json.other_flights || []);
+  const list = [];
+
+  all.forEach((item) => {
+    const legs = item.flights || [];
+    if (!legs.length || typeof item.price !== 'number') return;
+
+    const airlines = Array.from(new Set(legs.map((l) => l.airline).filter(Boolean)));
+    const layovers = item.layovers || [];
+
+    list.push({
+      departure_city: from.city,
+      arrival_city: to.city,
+      airline: airlines.join(' + '),
+      flight_numbers: legs.map((l) => l.flight_number).filter(Boolean).join(', '),
+      departure_time: legs[0].departure_airport && legs[0].departure_airport.time,
+      arrival_time: legs[legs.length - 1].arrival_airport && legs[legs.length - 1].arrival_airport.time,
+      duration_minutes: item.total_duration,
+      stops: legs.length - 1,
+      via: layovers.map((l) => l.name || l.id).filter(Boolean).join(', ') || null,
+      cabin_class: cabin.name,
+      cabin_label: cabin.label,
+      price: roundTo(item.price * EUR_TO_FCFA, 500),
+      price_eur: item.price,
+      currency: 'FCFA',
+      source: 'Google Flights'
+    });
+  });
+
+  list.sort((a, b) => a.price - b.price);
+
+  if (list.length) {
+    const min = list[0].price;
+    const avg = list.reduce((sum, o) => sum + o.price, 0) / list.length;
+    list.forEach((o) => {
+      o.is_best_price = o.price === min;
+      o.route_average = Math.round(avg);
+      o.discount_percent = Math.round(((avg - o.price) / avg) * 100);
+      o.is_low_price = list.length > 1 && o.discount_percent >= LOW_PRICE_PERCENT;
+    });
+  }
+  return list;
+}
+
+// Vrais prix : /api/live-search?from=Abidjan&to=Paris&date=2026-11-15&return=2026-11-30&cabin=ECONOMY
+// Chaque nouvelle recherche consomme 1 recherche SerpApi (250 gratuites par mois).
+app.get('/api/live-search', async (req, res) => {
+  if (!SERPAPI_KEY) {
+    return res.status(503).json({ error: 'Clé SerpApi absente : ajoutez SERPAPI_KEY dans Render > Environment' });
+  }
+
+  const from = findCity(req.query.from);
+  const to = findCity(req.query.to);
+  const date = req.query.date;
+  const returnDate = req.query.return;
+  const cabin = SERPAPI_CLASS[req.query.cabin] ? req.query.cabin : 'ECONOMY';
+
+  if (!from || !to) return res.status(400).json({ error: 'Ville de départ ou d\'arrivée inconnue' });
+  if (!isDate(date)) return res.status(400).json({ error: 'Date de départ manquante (format AAAA-MM-JJ)' });
+  if (returnDate && (!isDate(returnDate) || returnDate < date)) {
+    return res.status(400).json({ error: 'Date de retour invalide' });
+  }
+
+  const key = [from.code, to.code, date, returnDate || '', cabin].join('|');
+  const cached = liveCache[key];
+  if (cached && Date.now() - cached.time < LIVE_CACHE_HOURS * 3600 * 1000) {
+    return res.json(Object.assign({}, cached.body, { from_cache: true }));
+  }
+
+  const params = new URLSearchParams({
+    engine: 'google_flights',
+    departure_id: from.code,
+    arrival_id: to.code,
+    outbound_date: date,
+    type: returnDate ? '1' : '2', // 1 = aller-retour, 2 = aller simple
+    travel_class: String(SERPAPI_CLASS[cabin]),
+    currency: 'EUR',
+    hl: 'fr',
+    api_key: SERPAPI_KEY
+  });
+  if (returnDate) params.set('return_date', returnDate);
+
+  try {
+    const response = await fetch('https://serpapi.com/search.json?' + params.toString());
+    const json = await response.json();
+
+    if (!response.ok || json.error) {
+      console.log('❌ SerpApi :', json.error || response.status);
+      // "no results" n'est pas une panne : on renvoie une liste vide
+      if (String(json.error || '').toLowerCase().includes('no results')) {
+        return res.json({ success: true, live: true, data: [], count: 0, trip: returnDate ? 'aller-retour' : 'aller simple' });
+      }
+      return res.status(502).json({ error: 'Google Flights : ' + (json.error || 'erreur ' + response.status) });
+    }
+
+    const data = parseGoogleFlights(json, from, to, cabin);
+    const body = {
+      success: true,
+      live: true,
+      from: from.city,
+      to: to.city,
+      date: date,
+      return_date: returnDate || null,
+      trip: returnDate ? 'aller-retour' : 'aller simple',
+      data: data,
+      count: data.length,
+      google_flights_url: json.search_metadata && json.search_metadata.google_flights_url,
+      searched_at: new Date().toISOString()
+    };
+    liveCache[key] = { time: Date.now(), body: body };
+    console.log('✅ Google Flights ' + from.code + '-' + to.code + ' ' + date + ' : ' + data.length + ' vols');
+    res.json(body);
+  } catch (err) {
+    console.log('❌ SerpApi injoignable :', err.message);
+    res.status(502).json({ error: 'Impossible de joindre SerpApi : ' + err.message });
+  }
+});
+
+// Recherches restantes ce mois-ci (cette verification ne consomme pas de recherche)
+app.get('/api/live-status', async (req, res) => {
+  if (!SERPAPI_KEY) return res.json({ enabled: false });
+  try {
+    const response = await fetch('https://serpapi.com/account.json?api_key=' + encodeURIComponent(SERPAPI_KEY));
+    const json = await response.json();
+    res.json({
+      enabled: true,
+      searches_left: json.total_searches_left !== undefined ? json.total_searches_left : json.plan_searches_left,
+      searches_per_month: json.searches_per_month
+    });
+  } catch (err) {
+    res.json({ enabled: true, searches_left: null });
+  }
 });
 
 // Ancien endpoint, limite a 300 lignes (il y a maintenant des milliers de prix)
