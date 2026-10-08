@@ -97,6 +97,8 @@
             padding: 2px 8px; margin-left: 6px; background: var(--best-bg); color: var(--best-fg); vertical-align: middle;
         }
         a { color: var(--accent); }
+        .up { color: var(--demo-fg); font-weight: 600; }
+        .down { color: var(--best-fg); font-weight: 600; }
         .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
         .chips button { width: auto; padding: 6px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; }
         .chips button.on { background: var(--accent); color: #fff; border-color: transparent; }
@@ -146,6 +148,14 @@
             <button class="primary" id="live-btn">Chercher les vrais prix</button>
         </div>
         <div id="live-results"></div>
+    </div>
+
+    <div class="card">
+        <h2>Trajets surveillés <span class="live-badge">automatique</span></h2>
+        <p class="sub">Meilleur prix Google Flights, aller simple économique, départ 3 semaines après la vérification. Chaque trajet est vérifié tous les 2 jours.</p>
+        <div id="watch"><div class="empty">Chargement...</div></div>
+        <h2 style="margin-top:16px">Alertes de baisse de prix</h2>
+        <div id="alerts"><div class="empty">Chargement...</div></div>
     </div>
 
     <div class="demo">
@@ -396,6 +406,66 @@
 
     liveBtn.addEventListener('click', liveSearch);
 
+    // ==================== SURVEILLANCE ====================
+    var watchBox = document.getElementById('watch');
+    var alertsBox = document.getElementById('alerts');
+
+    function shortDate(iso) {
+        return iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '';
+    }
+
+    function loadWatch() {
+        getJson('/api/watch').then(function (res) {
+            if (!res.enabled) {
+                message(watchBox, 'Surveillance pas encore activée : la base de données n\'est pas branchée au serveur.');
+                alertsBox.replaceChildren();
+                return;
+            }
+            watchBox.replaceChildren();
+            res.data.forEach(function (w) {
+                var row = el('div', 'row');
+                var left = el('div');
+                left.appendChild(el('div', 'name', w.from + ' → ' + w.to));
+                var meta = w.checked_at
+                    ? (w.airline || 'Aucun vol trouvé') + ' · vol du ' + shortDate(w.travel_date) + ' · vérifié le ' + shortDate(w.checked_at)
+                    : 'Pas encore vérifié';
+                left.appendChild(el('div', 'meta', meta));
+                row.appendChild(left);
+                var right = el('div', 'price', w.min_price ? money(w.min_price) : '—');
+                if (w.change_percent !== null && w.change_percent !== 0) {
+                    var ch = el('div', w.change_percent < 0 ? 'down' : 'up',
+                        (w.change_percent < 0 ? '▼ ' : '▲ ') + Math.abs(w.change_percent) + ' %');
+                    ch.style.fontSize = '13px';
+                    ch.style.textAlign = 'right';
+                    right.appendChild(ch);
+                }
+                row.appendChild(right);
+                watchBox.appendChild(row);
+            });
+
+            var alerts = res.alerts || [];
+            if (alerts.length === 0) {
+                message(alertsBox, 'Aucune baisse d\'au moins 10 % pour le moment.');
+                return;
+            }
+            alertsBox.replaceChildren();
+            alerts.forEach(function (a) {
+                var row = el('div', 'row best');
+                var left = el('div');
+                var name = el('div', 'name', a.route_from + ' → ' + a.route_to);
+                name.appendChild(el('span', 'tag low', '-' + a.drop_percent + ' %'));
+                left.appendChild(name);
+                left.appendChild(el('div', 'meta', (a.airline || '') + ' · avant ' + money(a.old_price) + ' · le ' + shortDate(a.created_at)));
+                row.appendChild(left);
+                row.appendChild(el('div', 'price', money(a.new_price)));
+                alertsBox.appendChild(row);
+            });
+        }).catch(function () {
+            message(watchBox, 'Impossible de charger la surveillance.');
+            alertsBox.replaceChildren();
+        });
+    }
+
     // Raccourcis : un clic remplit Départ et Arrivée
     var TOP_ROUTES = [
         ['Abidjan', 'Casablanca'], ['Casablanca', 'Abidjan'],
@@ -453,6 +523,7 @@
     search();
     loadDeals();
     loadLiveStatus();
+    loadWatch();
     markChips();
 </script>
 </body>
