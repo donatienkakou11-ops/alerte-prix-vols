@@ -623,13 +623,13 @@ async function runWatchCycle() {
 
 // A appeler toutes les 6 h par un service externe (cron-job.org) :
 // cela reveille le serveur Render gratuit et lance la verification.
-app.get('/api/watch/run', async (req, res) => {
-  try {
-    res.json(Object.assign({ success: true }, await runWatchCycle()));
-  } catch (err) {
-    console.log('❌ Surveillance :', err.message);
-    res.status(500).json({ error: err.message });
-  }
+app.get('/api/watch/run', (req, res) => {
+  // On repond tout de suite (cron-job.org n'attend que 30 s),
+  // la verification continue ensuite en arriere-plan.
+  res.json({ success: true, message: 'Vérification lancée' });
+  runWatchCycle()
+    .then((r) => console.log('🔎 Surveillance :', r.checked || r.message || 'rien'))
+    .catch((err) => console.log('❌ Surveillance :', err.message));
 });
 
 // Test du message WhatsApp : ouvrir /api/whatsapp/test dans le navigateur
