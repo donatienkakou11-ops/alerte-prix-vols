@@ -478,6 +478,35 @@ async function sendWhatsApp(text) {
   }
 }
 
+// ==================== MESSAGE TELEGRAM (gratuit, officiel) ====================
+// Reglages Render : TELEGRAM_BOT_TOKEN (donne par @BotFather) et TELEGRAM_CHAT_ID.
+// Pour trouver TELEGRAM_CHAT_ID : ecrire au bot, puis ouvrir /api/telegram/chat-id
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+async function sendTelegram(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return false;
+  try {
+    const response = await fetch('https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: text })
+    });
+    const json = await response.json();
+    if (!json.ok) console.log('❌ Telegram :', json.description);
+    return !!json.ok;
+  } catch (err) {
+    console.log('❌ Telegram injoignable :', err.message);
+    return false;
+  }
+}
+
+// Envoie sur WhatsApp et/ou Telegram selon les reglages presents
+async function notify(text) {
+  const results = await Promise.all([sendWhatsApp(text), sendTelegram(text)]);
+  return { whatsapp: results[0], telegram: results[1] };
+}
+
 function fcfa(n) {
   return Number(n).toLocaleString('fr-FR').replace(/ | /g, ' ') + ' FCFA';
 }
@@ -559,7 +588,8 @@ async function checkRoute(fromName, toName) {
   }
 
   for (const a of alerts) {
-    a.whatsapp_sent = await sendWhatsApp(alertText(a));
+    const sent = await notify(alertText(a));
+    a.whatsapp_sent = sent.whatsapp || sent.telegram;
     await db('price_alerts', { method: 'POST', body: JSON.stringify(a) });
     console.log('🔔 ' + alertText(a));
   }
@@ -603,6 +633,34 @@ app.get('/api/watch/run', async (req, res) => {
 });
 
 // Test du message WhatsApp : ouvrir /api/whatsapp/test dans le navigateur
+// Trouver son TELEGRAM_CHAT_ID : ecrire "bonjour" au bot, puis ouvrir cette adresse
+app.get('/api/telegram/chat-id', async (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN) return res.status(503).json({ error: 'Ajoutez TELEGRAM_BOT_TOKEN dans Render > Environment' });
+  try {
+    const response = await fetch('https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/getUpdates');
+    const json = await response.json();
+    if (!json.ok) return res.status(502).json({ error: 'Telegram : ' + json.description });
+    const chats = {};
+    (json.result || []).forEach((u) => {
+      const m = u.message || u.channel_post;
+      if (m && m.chat) chats[m.chat.id] = { chat_id: m.chat.id, nom: m.chat.first_name || m.chat.title || '' };
+    });
+    const list = Object.values(chats);
+    res.json(list.length ? { a_copier_dans_TELEGRAM_CHAT_ID: list } : { message: 'Aucun message reçu : écrivez « bonjour » à votre bot sur Telegram, puis rechargez cette page.' });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Test des notifications : /api/notify/test
+app.get('/api/notify/test', async (req, res) => {
+  const sent = await notify('✅ Alerte Prix Vols : les notifications fonctionnent.');
+  res.json({
+    whatsapp: CALLMEBOT_PHONE && CALLMEBOT_APIKEY ? (sent.whatsapp ? 'envoyé ✅' : 'échec ❌') : 'non configuré',
+    telegram: TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID ? (sent.telegram ? 'envoyé ✅' : 'échec ❌') : 'non configuré'
+  });
+});
+
 app.get('/api/whatsapp/test', async (req, res) => {
   if (!CALLMEBOT_PHONE || !CALLMEBOT_APIKEY) {
     return res.status(503).json({ error: 'Ajoutez CALLMEBOT_PHONE et CALLMEBOT_APIKEY dans Render > Environment' });
