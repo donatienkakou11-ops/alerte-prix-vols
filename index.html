@@ -148,6 +148,21 @@
             <button class="primary" id="live-btn">Chercher les vrais prix</button>
         </div>
         <div id="live-results"></div>
+
+        <h2 style="margin-top:18px">Comparer plusieurs jours</h2>
+        <p class="sub">Meilleur prix et nombre de vols pour chaque jour, en aller simple. 1 recherche par jour (maximum 14 jours).</p>
+        <div class="live-form">
+            <div>
+                <label for="range-start">Du</label>
+                <input type="date" id="range-start">
+            </div>
+            <div>
+                <label for="range-end">Au</label>
+                <input type="date" id="range-end">
+            </div>
+            <button class="primary" id="range-btn">Comparer</button>
+        </div>
+        <div id="range-results"></div>
     </div>
 
     <div class="card">
@@ -407,6 +422,116 @@
 
     liveBtn.addEventListener('click', liveSearch);
 
+    // ==================== PLUSIEURS JOURS ====================
+    var rangeStart = document.getElementById('range-start');
+    var rangeEnd = document.getElementById('range-end');
+    var rangeBtn = document.getElementById('range-btn');
+    var rangeBox = document.getElementById('range-results');
+    rangeStart.min = isoDate(today);
+    rangeEnd.min = isoDate(today);
+
+    function dayCount() {
+        if (!rangeStart.value || !rangeEnd.value || rangeEnd.value < rangeStart.value) return 0;
+        return Math.round((new Date(rangeEnd.value) - new Date(rangeStart.value)) / 86400000) + 1;
+    }
+    function updateRangeBtn() {
+        var n = dayCount();
+        rangeBtn.textContent = n ? 'Comparer ' + n + ' jour' + (n > 1 ? 's' : '') + ' (' + n + ' recherche' + (n > 1 ? 's' : '') + ' max.)' : 'Comparer';
+    }
+    rangeStart.addEventListener('change', function () {
+        if (!rangeEnd.value || rangeEnd.value < rangeStart.value) {
+            rangeEnd.value = isoDate(new Date(new Date(rangeStart.value).getTime() + 6 * 86400000));
+        }
+        updateRangeBtn();
+    });
+    rangeEnd.addEventListener('change', updateRangeBtn);
+
+    function dayLabel(iso) {
+        return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    }
+
+    function rangeSearch() {
+        var n = dayCount();
+        if (!n) { message(rangeBox, 'Choisissez une date « du » et une date « au ».'); return; }
+        if (n > 14) { message(rangeBox, 'Maximum 14 jours par comparaison.'); return; }
+        if (n > 5 && !confirm('Cette comparaison peut utiliser jusqu\'à ' + n + ' recherches sur votre quota du mois. Continuer ?')) return;
+
+        var path = '/api/live-range?from=' + encodeURIComponent(fromSel.value) + '&to=' + encodeURIComponent(toSel.value) +
+            '&start=' + rangeStart.value + '&end=' + rangeEnd.value + '&cabin=' + cabinSel.value;
+        rangeBtn.disabled = true;
+        message(rangeBox, 'Recherche de ' + n + ' jours sur Google Flights... (jusqu\'à 1 minute)');
+
+        fetch(API + path).then(function (r) {
+            return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+        }).then(function (res) {
+            var body = res.body;
+            if (!res.ok) { message(rangeBox, body.error || 'Erreur pendant la recherche.'); return; }
+            var info = el('p', 'sub', fromSel.value + ' → ' + toSel.value + ' · aller simple · ' + body.searches_used + ' recherche(s) utilisée(s). Touchez un jour pour voir tous ses vols.');
+            rangeBox.replaceChildren(info);
+
+            // 1) Classement des compagnies sur la periode
+            var airlines = body.airlines || [];
+            if (airlines.length) {
+                rangeBox.appendChild(el('div', 'name', 'Meilleur prix de chaque compagnie sur la période'));
+                rangeBox.appendChild(el('p', 'sub', 'Du moins cher au plus cher, avec le jour où ce prix est proposé.'));
+                airlines.forEach(function (a, idx) {
+                    var row = el('div', 'row clickable' + (idx === 0 ? ' best' : ''));
+                    var left = el('div');
+                    var name = el('div', 'name', (idx + 1) + '. ' + a.airline);
+                    if (idx === 0) name.appendChild(el('span', 'tag best', 'Meilleur prix'));
+                    left.appendChild(name);
+                    left.appendChild(el('div', 'meta', 'le ' + dayLabel(a.date) + (a.stops === 0 ? ' · direct' : '') +
+                        ' · en vente ' + a.days_available + ' jour' + (a.days_available > 1 ? 's' : '') + ' sur ' + body.days.length));
+                    row.appendChild(left);
+                    row.appendChild(el('div', 'price', money(a.price)));
+                    row.addEventListener('click', function () {
+                        dateOut.value = a.date;
+                        dateBack.value = '';
+                        liveSearch();
+                        liveBox.scrollIntoView({ behavior: 'smooth' });
+                    });
+                    rangeBox.appendChild(row);
+                });
+                var t = el('div', 'name', 'Jour par jour');
+                t.style.marginTop = '14px';
+                rangeBox.appendChild(t);
+            }
+
+            // 2) Detail jour par jour
+            body.days.forEach(function (d) {
+                var row = el('div', 'row clickable' + (d.is_best_day ? ' best' : ''));
+                var left = el('div');
+                var name = el('div', 'name', dayLabel(d.date));
+                if (d.is_best_day) name.appendChild(el('span', 'tag best', 'Meilleur jour'));
+                left.appendChild(name);
+                var meta;
+                if (d.error) meta = 'Erreur pour ce jour';
+                else if (!d.best) meta = 'Aucun vol trouvé ce jour-là';
+                else meta = d.count + ' vol' + (d.count > 1 ? 's' : '') + ' · ' + d.airlines.length + ' compagnie' + (d.airlines.length > 1 ? 's' : '') +
+                    ' · moins cher : ' + d.best.airline + (d.best.stops === 0 ? ' (direct)' : '');
+                left.appendChild(el('div', 'meta', meta));
+                row.appendChild(left);
+                row.appendChild(el('div', 'price', d.best ? money(d.best.price) : '—'));
+                if (d.best) {
+                    row.addEventListener('click', function () {
+                        dateOut.value = d.date;
+                        dateBack.value = '';
+                        liveSearch(); // deja en memoire : ne coute pas de recherche
+                        liveBox.scrollIntoView({ behavior: 'smooth' });
+                    });
+                }
+                rangeBox.appendChild(row);
+            });
+            loadLiveStatus();
+        }).catch(function () {
+            message(rangeBox, 'Impossible de joindre le serveur. Réessayez dans une minute.');
+        }).finally(function () {
+            rangeBtn.disabled = false;
+            updateRangeBtn();
+        });
+    }
+    rangeBtn.addEventListener('click', rangeSearch);
+
     // ==================== SURVEILLANCE ====================
     var watchBox = document.getElementById('watch');
     var alertsBox = document.getElementById('alerts');
@@ -504,7 +629,7 @@
     fromSel.addEventListener('change', markChips);
     toSel.addEventListener('change', markChips);
     document.getElementById('swap').addEventListener('click', function () { setTimeout(markChips, 0); });
-    function clearLive() { liveBox.replaceChildren(); }
+    function clearLive() { liveBox.replaceChildren(); rangeBox.replaceChildren(); }
 
     fromSel.addEventListener('change', clearLive);
     toSel.addEventListener('change', clearLive);
