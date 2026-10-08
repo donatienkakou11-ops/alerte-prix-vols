@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const cron = require('node-cron');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -748,6 +749,12 @@ app.get('/api/latest-prices', (req, res) => {
 
 app.get('/api/test', (req, res) => {
   res.json({ success: true, message: 'API is working!', offers: offers.length, demo: true });
+});
+
+// La page du site, servie directement par Render
+// (utile quand Netlify ne peut plus publier) : https://alerte-prix-vols.onrender.com
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.use((req, res) => {
