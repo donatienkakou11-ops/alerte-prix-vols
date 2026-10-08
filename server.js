@@ -639,6 +639,91 @@ app.get('/api/watch', async (req, res) => {
   }
 });
 
+// Plusieurs jours : /api/live-range?from=Abidjan&to=Paris&start=2026-11-10&end=2026-11-20&cabin=ECONOMY
+// 1 recherche par jour (11 jours = 11 recherches), sauf les jours deja cherches dans les 6 h.
+const RANGE_MAX_DAYS = 14;
+
+function addDays(iso, n) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+app.get('/api/live-range', async (req, res) => {
+  if (!SERPAPI_KEY) {
+    return res.status(503).json({ error: 'Clé SerpApi absente : ajoutez SERPAPI_KEY dans Render > Environment' });
+  }
+  const from = findCity(req.query.from);
+  const to = findCity(req.query.to);
+  const start = req.query.start;
+  const end = req.query.end;
+  const cabin = SERPAPI_CLASS[req.query.cabin] ? req.query.cabin : 'ECONOMY';
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (!from || !to) return res.status(400).json({ error: 'Ville de départ ou d\'arrivée inconnue' });
+  if (!isDate(start) || !isDate(end) || end < start) return res.status(400).json({ error: 'Dates du / au invalides' });
+  if (start < today) return res.status(400).json({ error: 'La première date est déjà passée' });
+
+  const dates = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) dates.push(d);
+  if (dates.length > RANGE_MAX_DAYS) {
+    return res.status(400).json({ error: 'Maximum ' + RANGE_MAX_DAYS + ' jours par comparaison (ici ' + dates.length + ')' });
+  }
+
+  // 3 recherches en meme temps pour aller plus vite
+  const days = new Array(dates.length);
+  const byAirline = {};
+  let next = 0;
+  async function worker() {
+    while (next < dates.length) {
+      const i = next++;
+      const date = dates[i];
+      try {
+        const r = await searchGoogleFlights(from, to, date, null, cabin);
+        const best = r.data[0];
+        // Meilleur prix de chaque compagnie ce jour-la
+        r.data.forEach((o) => {
+          String(o.airline || '').split(' + ').forEach((name) => {
+            if (!name) return;
+            const cur = byAirline[name];
+            if (!cur || o.price < cur.price) {
+              byAirline[name] = { airline: name, price: o.price, date: date, stops: o.stops, departure_time: o.departure_time, days_available: cur ? cur.days_available : 0 };
+            }
+          });
+        });
+        airlinesOf(r.data).forEach((name) => { byAirline[name].days_available = (byAirline[name].days_available || 0) + 1; });
+        days[i] = {
+          date: date,
+          count: r.data.length,
+          airlines: airlinesOf(r.data),
+          best: best ? { price: best.price, airline: best.airline, stops: best.stops, departure_time: best.departure_time } : null,
+          from_cache: !!r.from_cache
+        };
+      } catch (err) {
+        days[i] = { date: date, error: err.message };
+      }
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
+
+  const priced = days.filter((d) => d.best);
+  const min = priced.length ? Math.min(...priced.map((d) => d.best.price)) : null;
+  days.forEach((d) => { d.is_best_day = !!(d.best && d.best.price === min); });
+
+  res.json({
+    success: true,
+    from: from.city,
+    to: to.city,
+    cabin: cabin,
+    trip: 'aller simple',
+    days: days,
+    // Classement des compagnies : leur meilleur prix sur toute la periode
+    airlines: Object.values(byAirline).sort((a, b) => a.price - b.price),
+    best_price: min,
+    searches_used: days.filter((d) => !d.error && !d.from_cache).length
+  });
+});
+
 // Recherches restantes ce mois-ci (cette verification ne consomme pas de recherche)
 app.get('/api/live-status', async (req, res) => {
   if (!SERPAPI_KEY) return res.json({ enabled: false });
