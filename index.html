@@ -154,7 +154,8 @@
         <h2>Trajets surveillés <span class="live-badge">automatique</span></h2>
         <p class="sub">Meilleur prix Google Flights, aller simple économique, départ 3 semaines après la vérification. Chaque trajet est vérifié tous les 2 jours.</p>
         <div id="watch"><div class="empty">Chargement...</div></div>
-        <h2 style="margin-top:16px">Alertes de baisse de prix</h2>
+        <h2 style="margin-top:16px">Alertes</h2>
+        <p class="sub">🟢 compagnie apparue · 🔴 compagnie absente 2 vérifications de suite · 📉 prix en baisse d'au moins 10 %</p>
         <div id="alerts"><div class="empty">Chargement...</div></div>
     </div>
 
@@ -445,19 +446,24 @@
 
             var alerts = res.alerts || [];
             if (alerts.length === 0) {
-                message(alertsBox, 'Aucune baisse d\'au moins 10 % pour le moment.');
+                message(alertsBox, 'Aucune alerte pour le moment.');
                 return;
             }
             alertsBox.replaceChildren();
             alerts.forEach(function (a) {
-                var row = el('div', 'row best');
+                var kind = a.kind || 'baisse';
+                var row = el('div', 'row' + (kind === 'fermeture' ? '' : ' best'));
                 var left = el('div');
-                var name = el('div', 'name', a.route_from + ' → ' + a.route_to);
-                name.appendChild(el('span', 'tag low', '-' + a.drop_percent + ' %'));
+                var label = kind === 'ouverture' ? '🟢 Vol ouvert' : kind === 'fermeture' ? '🔴 Vol fermé' : '📉 Prix en baisse';
+                var name = el('div', 'name', label + ' · ' + a.route_from + ' → ' + a.route_to);
+                if (kind === 'baisse') name.appendChild(el('span', 'tag low', '-' + a.drop_percent + ' %'));
                 left.appendChild(name);
-                left.appendChild(el('div', 'meta', (a.airline || '') + ' · avant ' + money(a.old_price) + ' · le ' + shortDate(a.created_at)));
+                var detail = (a.airline || '') + ' · vol du ' + shortDate(a.travel_date) + ' · signalé le ' + shortDate(a.created_at);
+                if (kind === 'baisse') detail += ' · avant ' + money(a.old_price);
+                if (kind === 'fermeture') detail += ' · à vérifier sur Amadeus';
+                left.appendChild(el('div', 'meta', detail));
                 row.appendChild(left);
-                row.appendChild(el('div', 'price', money(a.new_price)));
+                row.appendChild(el('div', 'price', a.new_price ? money(a.new_price) : '—'));
                 alertsBox.appendChild(row);
             });
         }).catch(function () {
