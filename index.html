@@ -59,7 +59,7 @@
         }
         .form { display: grid; grid-template-columns: 1fr auto 1fr 1fr; gap: 10px; align-items: end; }
         label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-        select, button {
+        select, button, input {
             width: 100%; font: inherit; color: var(--fg); background: var(--bg);
             border: 1px solid var(--border); border-radius: 8px; padding: 10px;
         }
@@ -88,16 +88,24 @@
         .tag.best { background: var(--best-fg); color: var(--best-bg); }
         .tag.low { background: var(--low-bg); color: var(--low-fg); }
         .empty { color: var(--muted); text-align: center; padding: 20px 8px; }
+        .live-form { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 10px; align-items: end; margin-bottom: 12px; }
+        @media (max-width: 640px) { .live-form { grid-template-columns: 1fr; } }
+        button.primary { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; cursor: pointer; }
+        button.primary:disabled { opacity: 0.6; cursor: wait; }
+        .live-badge {
+            display: inline-block; font-size: 12px; font-weight: 600; border-radius: 20px;
+            padding: 2px 8px; margin-left: 6px; background: var(--best-bg); color: var(--best-fg); vertical-align: middle;
+        }
+        a { color: var(--accent); }
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        .chips button { width: auto; padding: 6px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; }
+        .chips button.on { background: var(--accent); color: #fff; border-color: transparent; }
     </style>
 </head>
 <body>
 <div class="wrap">
     <h1>Alerte Prix Vols</h1>
     <p class="sub">Angel Tour Multi Service+ · comparateur de prix par destination</p>
-    <div class="demo">
-        <b>Version de démonstration.</b> Les prix affichés sont simulés pour montrer le fonctionnement.
-        Ce ne sont pas encore les vrais tarifs des compagnies.
-    </div>
 
     <div class="card">
         <div class="form">
@@ -119,6 +127,30 @@
                 </select>
             </div>
         </div>
+    </div>
+
+    <div class="card">
+        <h2>Vrais prix <span class="live-badge">Google Flights</span></h2>
+        <label>Trajets les plus vendus</label>
+        <div class="chips" id="chips"></div>
+        <p class="sub" id="live-status">Choisissez une date puis lancez la recherche. Chaque recherche nouvelle utilise 1 des recherches du mois.</p>
+        <div class="live-form">
+            <div>
+                <label for="date-out">Date aller</label>
+                <input type="date" id="date-out">
+            </div>
+            <div>
+                <label for="date-back">Date retour (facultatif)</label>
+                <input type="date" id="date-back">
+            </div>
+            <button class="primary" id="live-btn">Chercher les vrais prix</button>
+        </div>
+        <div id="live-results"></div>
+    </div>
+
+    <div class="demo">
+        <b>Prix de démonstration ci-dessous.</b> Ces prix sont simulés pour montrer le fonctionnement,
+        ce ne sont pas les vrais tarifs des compagnies.
     </div>
 
     <div class="card">
@@ -144,7 +176,7 @@
     var dealsBox = document.getElementById('deals');
     // Liste des villes (la même que dans server.js) : les menus se remplissent
     // tout de suite, même si le serveur met du temps à répondre.
-    var cities = [{"city": "Abidjan", "country": "Côte d'Ivoire"}, {"city": "Accra", "country": "Ghana"}, {"city": "Addis-Abeba", "country": "Éthiopie"}, {"city": "Alger", "country": "Algérie"}, {"city": "Bamako", "country": "Mali"}, {"city": "Beyrouth", "country": "Liban"}, {"city": "Bruxelles", "country": "Belgique"}, {"city": "Casablanca", "country": "Maroc"}, {"city": "Conakry", "country": "Guinée"}, {"city": "Cotonou", "country": "Bénin"}, {"city": "Dakar", "country": "Sénégal"}, {"city": "Djeddah", "country": "Arabie saoudite"}, {"city": "Doha", "country": "Qatar"}, {"city": "Douala", "country": "Cameroun"}, {"city": "Dubaï", "country": "Émirats arabes unis"}, {"city": "Francfort", "country": "Allemagne"}, {"city": "Genève", "country": "Suisse"}, {"city": "Guangzhou", "country": "Chine"}, {"city": "Istanbul", "country": "Turquie"}, {"city": "Johannesburg", "country": "Afrique du Sud"}, {"city": "Kinshasa", "country": "RD Congo"}, {"city": "Lagos", "country": "Nigéria"}, {"city": "Le Caire", "country": "Égypte"}, {"city": "Libreville", "country": "Gabon"}, {"city": "Lisbonne", "country": "Portugal"}, {"city": "Lomé", "country": "Togo"}, {"city": "Londres", "country": "Royaume-Uni"}, {"city": "Madrid", "country": "Espagne"}, {"city": "Monrovia", "country": "Libéria"}, {"city": "Montréal", "country": "Canada"}, {"city": "Nairobi", "country": "Kenya"}, {"city": "New York", "country": "États-Unis"}, {"city": "Niamey", "country": "Niger"}, {"city": "Ouagadougou", "country": "Burkina Faso"}, {"city": "Paris", "country": "France"}, {"city": "Rome", "country": "Italie"}, {"city": "Tunis", "country": "Tunisie"}];
+    var cities = [{"city": "Abidjan", "country": "Côte d'Ivoire"}, {"city": "Accra", "country": "Ghana"}, {"city": "Addis-Abeba", "country": "Éthiopie"}, {"city": "Alger", "country": "Algérie"}, {"city": "Bamako", "country": "Mali"}, {"city": "Beyrouth", "country": "Liban"}, {"city": "Bruxelles", "country": "Belgique"}, {"city": "Casablanca", "country": "Maroc"}, {"city": "Conakry", "country": "Guinée"}, {"city": "Cotonou", "country": "Bénin"}, {"city": "Dakar", "country": "Sénégal"}, {"city": "Djeddah", "country": "Arabie saoudite"}, {"city": "Doha", "country": "Qatar"}, {"city": "Douala", "country": "Cameroun"}, {"city": "Dubaï", "country": "Émirats arabes unis"}, {"city": "Francfort", "country": "Allemagne"}, {"city": "Genève", "country": "Suisse"}, {"city": "Guangzhou", "country": "Chine"}, {"city": "Istanbul", "country": "Turquie"}, {"city": "Johannesburg", "country": "Afrique du Sud"}, {"city": "Kinshasa", "country": "RD Congo"}, {"city": "Lagos", "country": "Nigéria"}, {"city": "Le Caire", "country": "Égypte"}, {"city": "Libreville", "country": "Gabon"}, {"city": "Lisbonne", "country": "Portugal"}, {"city": "Lomé", "country": "Togo"}, {"city": "Londres", "country": "Royaume-Uni"}, {"city": "Madrid", "country": "Espagne"}, {"city": "Manchester", "country": "Royaume-Uni"}, {"city": "Monrovia", "country": "Libéria"}, {"city": "Montréal", "country": "Canada"}, {"city": "Nairobi", "country": "Kenya"}, {"city": "New York", "country": "États-Unis"}, {"city": "Niamey", "country": "Niger"}, {"city": "Ouagadougou", "country": "Burkina Faso"}, {"city": "Paris", "country": "France"}, {"city": "Rome", "country": "Italie"}, {"city": "Tunis", "country": "Tunisie"}];
 
     function money(n) {
         return Number(n).toLocaleString('fr-FR') + ' FCFA';
@@ -207,7 +239,7 @@
     function search() {
         var from = fromSel.value, to = toSel.value;
         if (!from || !to) return;
-        document.getElementById('results-title').textContent = from + ' → ' + to;
+        document.getElementById('results-title').textContent = from + ' → ' + to + ' (démo)';
         message(resultsBox, 'Recherche... (le serveur peut mettre jusqu\'à une minute à démarrer)');
 
         var path = '/api/search?from=' + encodeURIComponent(from) +
@@ -244,7 +276,7 @@
     }
 
     function loadDeals() {
-        document.getElementById('deals-title').textContent = 'Prix très bas au départ de ' + fromSel.value;
+        document.getElementById('deals-title').textContent = 'Prix très bas au départ de ' + fromSel.value + ' (démo)';
         getJson('/api/deals?cabin=' + cabinSel.value + '&from=' + encodeURIComponent(fromSel.value)).then(function (res) {
             var list = res.data || [];
             if (list.length === 0) {
@@ -270,6 +302,139 @@
         });
     }
 
+    // ==================== VRAIS PRIX ====================
+    var liveBox = document.getElementById('live-results');
+    var liveBtn = document.getElementById('live-btn');
+    var dateOut = document.getElementById('date-out');
+    var dateBack = document.getElementById('date-back');
+    var liveStatus = document.getElementById('live-status');
+
+    function isoDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    var today = new Date();
+    dateOut.min = isoDate(today);
+    dateBack.min = isoDate(today);
+    dateOut.value = isoDate(new Date(today.getTime() + 14 * 86400000));
+
+    function hm(dateTime) {
+        // "2026-11-15 23:40" -> "15/11 23:40"
+        var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(dateTime || '');
+        return m ? m[3] + '/' + m[2] + ' ' + m[4] : '';
+    }
+
+    function duration(minutes) {
+        if (!minutes) return '';
+        return Math.floor(minutes / 60) + ' h ' + String(minutes % 60).padStart(2, '0');
+    }
+
+    function liveRow(o, trip) {
+        var row = el('div', 'row' + (o.is_best_price ? ' best' : ''));
+        var left = el('div');
+        var name = el('div', 'name', o.airline);
+        if (o.is_best_price) name.appendChild(el('span', 'tag best', 'Meilleur prix'));
+        if (o.is_low_price) name.appendChild(el('span', 'tag low', '-' + o.discount_percent + ' %'));
+        left.appendChild(name);
+        var stops = o.stops === 0 ? 'Direct' : o.stops + ' escale' + (o.stops > 1 ? 's' : '') + (o.via ? ' (' + o.via + ')' : '');
+        left.appendChild(el('div', 'meta', hm(o.departure_time) + ' → ' + hm(o.arrival_time) + ' · ' + duration(o.duration_minutes) + ' · ' + stops));
+        left.appendChild(el('div', 'meta', (o.flight_numbers ? 'Vol ' + o.flight_numbers + ' · ' : '') + o.cabin_label + ' · ' + trip));
+        row.appendChild(left);
+        row.appendChild(el('div', 'price', money(o.price)));
+        return row;
+    }
+
+    function loadLiveStatus() {
+        getJson('/api/live-status').then(function (res) {
+            if (!res.enabled) {
+                liveStatus.textContent = 'Vrais prix pas encore activés : la clé SerpApi n\'est pas installée sur le serveur.';
+            } else if (res.searches_left !== null && res.searches_left !== undefined) {
+                liveStatus.textContent = 'Recherches restantes ce mois-ci : ' + res.searches_left + '. Une recherche déjà faite dans les 6 dernières heures est gratuite.';
+            }
+        }).catch(function () {});
+    }
+
+    function liveSearch() {
+        if (!dateOut.value) { message(liveBox, 'Choisissez une date aller.'); return; }
+        if (dateBack.value && dateBack.value < dateOut.value) { message(liveBox, 'La date retour doit être après la date aller.'); return; }
+
+        var path = '/api/live-search?from=' + encodeURIComponent(fromSel.value) +
+            '&to=' + encodeURIComponent(toSel.value) + '&date=' + dateOut.value +
+            (dateBack.value ? '&return=' + dateBack.value : '') + '&cabin=' + cabinSel.value;
+
+        liveBtn.disabled = true;
+        message(liveBox, 'Recherche sur Google Flights... (10 à 30 secondes)');
+
+        fetch(API + path).then(function (r) {
+            return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+        }).then(function (res) {
+            var body = res.body;
+            if (!res.ok) { message(liveBox, body.error || 'Erreur pendant la recherche.'); return; }
+            var list = body.data || [];
+            if (list.length === 0) { message(liveBox, 'Aucun vol trouvé sur Google Flights pour ce trajet à cette date.'); return; }
+
+            var info = el('p', 'sub', fromSel.value + ' → ' + toSel.value + ' · ' + list.length + ' vols · prix ' + body.trip +
+                ' par personne, convertis de l\'euro (1 € = 655,957 FCFA)' + (body.from_cache ? ' · résultat déjà en mémoire' : ''));
+            liveBox.replaceChildren(info);
+            list.forEach(function (o) { liveBox.appendChild(liveRow(o, body.trip)); });
+
+            if (body.google_flights_url) {
+                var link = el('a', null, 'Vérifier sur Google Flights');
+                link.href = body.google_flights_url;
+                link.target = '_blank';
+                link.rel = 'noopener';
+                var p = el('p', 'sub');
+                p.appendChild(link);
+                liveBox.appendChild(p);
+            }
+            loadLiveStatus();
+        }).catch(function () {
+            message(liveBox, 'Impossible de joindre le serveur. Réessayez dans une minute.');
+        }).finally(function () {
+            liveBtn.disabled = false;
+        });
+    }
+
+    liveBtn.addEventListener('click', liveSearch);
+
+    // Raccourcis : un clic remplit Départ et Arrivée
+    var TOP_ROUTES = [
+        ['Abidjan', 'Casablanca'], ['Casablanca', 'Abidjan'],
+        ['Abidjan', 'Paris'], ['Paris', 'Abidjan'],
+        ['Dakar', 'Casablanca'], ['Bamako', 'Casablanca'],
+        ['Abidjan', 'Manchester'], ['Manchester', 'Abidjan']
+    ];
+    var chipsBox = document.getElementById('chips');
+    function markChips() {
+        Array.prototype.forEach.call(chipsBox.children, function (b) {
+            b.classList.toggle('on', b.dataset.from === fromSel.value && b.dataset.to === toSel.value);
+        });
+    }
+    TOP_ROUTES.forEach(function (r) {
+        var b = el('button', null, r[0] + ' → ' + r[1]);
+        b.type = 'button';
+        b.dataset.from = r[0];
+        b.dataset.to = r[1];
+        b.addEventListener('click', function () {
+            fromSel.value = r[0];
+            syncArrival();
+            toSel.value = r[1];
+            clearLive();
+            search();
+            loadDeals();
+            markChips();
+        });
+        chipsBox.appendChild(b);
+    });
+    fromSel.addEventListener('change', markChips);
+    toSel.addEventListener('change', markChips);
+    document.getElementById('swap').addEventListener('click', function () { setTimeout(markChips, 0); });
+    function clearLive() { liveBox.replaceChildren(); }
+
+    fromSel.addEventListener('change', clearLive);
+    toSel.addEventListener('change', clearLive);
+    cabinSel.addEventListener('change', clearLive);
+    document.getElementById('swap').addEventListener('click', clearLive);
+
     fromSel.addEventListener('change', function () { syncArrival(); search(); loadDeals(); });
     toSel.addEventListener('change', search);
     cabinSel.addEventListener('change', function () { search(); loadDeals(); });
@@ -287,6 +452,8 @@
     toSel.value = 'Paris';
     search();
     loadDeals();
+    loadLiveStatus();
+    markChips();
 </script>
 </body>
 </html>
