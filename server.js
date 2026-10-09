@@ -8,14 +8,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// =====================================================================
-// PRIX DE DEMONSTRATION
-// Ces prix sont SIMULES (calcules par le serveur selon la distance),
-// pas des vrais tarifs. Ils seront remplaces par une vraie source.
-// =====================================================================
-
 // Villes : n'importe laquelle peut etre un depart ou une arrivee.
-// Pour ajouter une ville : une ligne ici + l'ajouter dans les compagnies.
+// Pour ajouter une ville : une ligne ici + une ligne dans la liste "cities" de index.html.
 const CITIES = [
   { city: 'Abidjan', country: "Côte d'Ivoire", code: 'ABJ', lat: 5.26, lon: -3.93 },
   { city: 'Dakar', country: 'Sénégal', code: 'DSS', lat: 14.67, lon: -17.07 },
@@ -57,36 +51,6 @@ const CITIES = [
   { city: 'Montréal', country: 'Canada', code: 'YUL', lat: 45.47, lon: -73.74 }
 ];
 
-const EUROPE = ['Paris', 'Bruxelles', 'Londres', 'Lisbonne', 'Madrid', 'Rome', 'Francfort', 'Genève'];
-
-// Compagnies : hub = sa base, cities = villes qu'elle dessert (liste indicative).
-// Une compagnie propose un trajet A -> B si elle dessert A et B :
-// vol direct si A ou B est son hub, sinon 1 escale par son hub.
-const AIRLINES = [
-  { name: "Air Côte d'Ivoire", hub: 'Abidjan', cities: ['Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Casablanca', 'Paris'] },
-  { name: 'ASKY Airlines', hub: 'Lomé', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Kinshasa', 'Johannesburg'] },
-  { name: 'Royal Air Maroc', hub: 'Casablanca', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Monrovia', 'Douala', 'Libreville', 'Kinshasa', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Doha', 'Djeddah', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Air France', hub: 'Paris', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Brussels Airlines', hub: 'Bruxelles', cities: ['Manchester', 'Abidjan', 'Dakar', 'Ouagadougou', 'Accra', 'Lomé', 'Cotonou', 'Conakry', 'Monrovia', 'Douala', 'Kinshasa', 'Nairobi', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Turkish Airlines', hub: 'Istanbul', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Cotonou', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Dubaï', 'Doha', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Ethiopian Airlines', hub: 'Addis-Abeba', cities: ['Manchester', 'Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Accra', 'Lomé', 'Lagos', 'Niamey', 'Conakry', 'Douala', 'Libreville', 'Kinshasa', 'Nairobi', 'Johannesburg', 'Le Caire', 'Paris', 'Bruxelles', 'Londres', 'Madrid', 'Rome', 'Francfort', 'Genève', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York'] },
-  { name: 'Emirates', hub: 'Dubaï', cities: ['Manchester', 'Abidjan', 'Dakar', 'Accra', 'Lagos', 'Conakry', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Qatar Airways', hub: 'Doha', cities: ['Manchester', 'Abidjan', 'Accra', 'Lagos', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Le Caire', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'Kenya Airways', hub: 'Nairobi', cities: ['Abidjan', 'Dakar', 'Accra', 'Lagos', 'Monrovia', 'Douala', 'Kinshasa', 'Addis-Abeba', 'Johannesburg', 'Paris', 'Londres', 'Dubaï', 'Guangzhou', 'New York'] },
-  { name: 'EgyptAir', hub: 'Le Caire', cities: ['Abidjan', 'Accra', 'Lagos', 'Douala', 'Kinshasa', 'Addis-Abeba', 'Nairobi', 'Johannesburg', 'Casablanca', 'Tunis', 'Alger', 'Istanbul', 'Dubaï', 'Doha', 'Djeddah', 'Beyrouth', 'Guangzhou', 'New York', 'Montréal'].concat(EUROPE) },
-  { name: 'TAP Air Portugal', hub: 'Lisbonne', cities: ['Abidjan', 'Dakar', 'Accra', 'Conakry', 'Casablanca', 'Paris', 'Bruxelles', 'Londres', 'Madrid', 'Rome', 'Francfort', 'Genève', 'New York', 'Montréal'] },
-  { name: 'Tunisair', hub: 'Tunis', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Niamey', 'Conakry', 'Casablanca', 'Alger', 'Le Caire', 'Istanbul', 'Djeddah', 'Beyrouth', 'Montréal'].concat(EUROPE) },
-  { name: 'Air Algérie', hub: 'Alger', cities: ['Abidjan', 'Dakar', 'Bamako', 'Ouagadougou', 'Niamey', 'Douala', 'Casablanca', 'Tunis', 'Le Caire', 'Istanbul', 'Dubaï', 'Djeddah', 'Beyrouth', 'Montréal'].concat(EUROPE) },
-  { name: 'Air Sénégal', hub: 'Dakar', cities: ['Abidjan', 'Bamako', 'Conakry', 'Cotonou', 'Niamey', 'Douala', 'Libreville', 'Casablanca', 'Paris'] },
-  { name: 'Air Peace', hub: 'Lagos', cities: ['Abidjan', 'Dakar', 'Accra', 'Lomé', 'Cotonou', 'Niamey', 'Monrovia', 'Douala', 'Johannesburg', 'Londres', 'Dubaï', 'Djeddah'] },
-  { name: 'Air Burkina', hub: 'Ouagadougou', cities: ['Abidjan', 'Dakar', 'Bamako', 'Accra', 'Lomé', 'Cotonou', 'Niamey'] },
-  { name: 'Middle East Airlines', hub: 'Beyrouth', cities: ['Abidjan', 'Accra', 'Lagos', 'Le Caire', 'Istanbul', 'Dubaï', 'Doha', 'Djeddah'].concat(EUROPE) },
-  { name: 'South African Airways', hub: 'Johannesburg', cities: ['Abidjan', 'Accra', 'Lagos', 'Kinshasa', 'Nairobi'] },
-  { name: 'Corsair', hub: 'Paris', cities: ['Abidjan', 'Bamako', 'Cotonou'] },
-  { name: 'Camair-Co', hub: 'Douala', cities: ['Abidjan', 'Cotonou', 'Lagos', 'Libreville'] },
-  { name: 'Africa World Airlines', hub: 'Accra', cities: ['Abidjan', 'Lagos', 'Monrovia'] }
-];
-
 // Trajets les plus vendus par l'agence (raccourcis sur la page)
 const TOP_ROUTES = [
   ['Abidjan', 'Casablanca'], ['Casablanca', 'Abidjan'],
@@ -96,114 +60,16 @@ const TOP_ROUTES = [
 ];
 
 const CABINS = [
-  { name: 'ECONOMY', label: 'Économique', factor: 1 },
-  { name: 'PREMIUM_ECONOMY', label: 'Premium Économique', factor: 1.6 },
-  { name: 'BUSINESS', label: 'Affaires', factor: 3.2 }
+  { name: 'ECONOMY', label: 'Économique' },
+  { name: 'PREMIUM_ECONOMY', label: 'Premium Économique' },
+  { name: 'BUSINESS', label: 'Affaires' }
 ];
 
 // "Prix tres bas" = au moins 15 % sous la moyenne du trajet (meme classe)
 const LOW_PRICE_PERCENT = 15;
 
-const cityByName = {};
-CITIES.forEach((c) => { cityByName[c.city] = c; });
-
-// Distance en km entre deux villes
-function distanceKm(a, b) {
-  const rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad;
-  const dLon = (b.lon - a.lon) * rad;
-  const h = Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.asin(Math.sqrt(h));
-}
-
 function roundTo(value, step) {
   return Math.round(value / step) * step;
-}
-
-let offers = [];
-let offersByRoute = {};
-let lastUpdate = null;
-
-function generateOffers() {
-  const list = [];
-  const byRoute = {};
-  const now = new Date().toISOString();
-
-  AIRLINES.forEach((airline) => {
-    // Set = enleve les doublons (ex : le hub deja present dans la liste)
-    const served = Array.from(new Set([airline.hub].concat(airline.cities)))
-      .filter((name) => cityByName[name]);
-    const hub = cityByName[airline.hub];
-
-    for (let i = 0; i < served.length; i++) {
-      for (let j = i + 1; j < served.length; j++) {
-        const a = cityByName[served[i]];
-        const b = cityByName[served[j]];
-        const direct = a === hub || b === hub;
-        const straight = distanceKm(a, b);
-        const flown = direct ? straight : distanceKm(a, hub) + distanceKm(hub, b);
-
-        // Pas de detour absurde (ex : Abidjan -> Accra en passant par Istanbul)
-        if (!direct && flown > straight * 2.2 + 1500) continue;
-
-        // Prix aller-retour economique simule : fixe + distance, moins cher avec escale
-        const base = (90000 + 75 * flown) * (direct ? 1 : 0.85);
-        const airlineLevel = 0.75 + Math.random() * 0.5;
-
-        // Les deux sens du trajet
-        [[a, b], [b, a]].forEach((pair) => {
-          const from = pair[0];
-          const to = pair[1];
-          const key = from.city + '|' + to.city;
-
-          CABINS.forEach((cabin) => {
-            const noise = 0.96 + Math.random() * 0.08;
-            const offer = {
-              route_id: from.code + '-' + to.code,
-              departure_city: from.city,
-              departure_country: from.country,
-              arrival_city: to.city,
-              arrival_country: to.country,
-              airline: airline.name,
-              stops: direct ? 0 : 1,
-              via: direct ? null : hub.city,
-              cabin_class: cabin.name,
-              cabin_label: cabin.label,
-              price: roundTo(base * cabin.factor * airlineLevel * noise, 500),
-              currency: 'FCFA',
-              scraped_at: now
-            };
-            list.push(offer);
-            if (!byRoute[key]) byRoute[key] = [];
-            byRoute[key].push(offer);
-          });
-        });
-      }
-    }
-  });
-
-  // Meilleur prix et prix tres bas, par trajet + classe
-  Object.values(byRoute).forEach((routeOffers) => {
-    CABINS.forEach((cabin) => {
-      const group = routeOffers.filter((o) => o.cabin_class === cabin.name);
-      if (group.length === 0) return;
-      const min = Math.min(...group.map((o) => o.price));
-      const avg = group.reduce((sum, o) => sum + o.price, 0) / group.length;
-
-      group.forEach((o) => {
-        o.is_best_price = o.price === min;
-        o.route_average = Math.round(avg);
-        o.discount_percent = Math.round(((avg - o.price) / avg) * 100);
-        o.is_low_price = group.length > 1 && o.discount_percent >= LOW_PRICE_PERCENT;
-      });
-    });
-  });
-
-  offers = list;
-  offersByRoute = byRoute;
-  lastUpdate = now;
-  console.log('✅ ' + offers.length + ' prix de démonstration sur ' + Object.keys(byRoute).length + ' trajets');
 }
 
 // Retrouver une ville sans tenir compte des majuscules
@@ -228,47 +94,6 @@ app.get('/api/destinations', (req, res) => {
 
 app.get('/api/top-routes', (req, res) => {
   res.json({ success: true, data: TOP_ROUTES.map((r) => ({ from: r[0], to: r[1] })) });
-});
-
-// Recherche : /api/search?from=Casablanca&to=Conakry&cabin=ECONOMY
-app.get('/api/search', (req, res) => {
-  const from = findCity(req.query.from);
-  const to = findCity(req.query.to);
-  const cabin = req.query.cabin;
-
-  if (!from || !to) {
-    return res.status(400).json({ error: 'Ville de départ ou d\'arrivée inconnue' });
-  }
-
-  let results = offersByRoute[from.city + '|' + to.city] || [];
-  if (cabin) {
-    results = results.filter((o) => o.cabin_class === cabin);
-  }
-  results = results.slice().sort((a, b) => a.price - b.price);
-
-  res.json({
-    success: true,
-    demo: true,
-    from: from.city,
-    to: to.city,
-    data: results,
-    count: results.length,
-    updated_at: lastUpdate
-  });
-});
-
-// Prix tres bas : /api/deals?from=Casablanca&cabin=ECONOMY ("from" facultatif)
-app.get('/api/deals', (req, res) => {
-  const cabin = req.query.cabin || 'ECONOMY';
-  const from = req.query.from ? findCity(req.query.from) : null;
-
-  const deals = offers
-    .filter((o) => o.is_low_price && o.cabin_class === cabin)
-    .filter((o) => !from || o.departure_city === from.city)
-    .sort((a, b) => b.discount_percent - a.discount_percent)
-    .slice(0, 12);
-
-  res.json({ success: true, demo: true, data: deals, count: deals.length, updated_at: lastUpdate });
 });
 
 // =====================================================================
@@ -332,6 +157,10 @@ function parseGoogleFlights(json, from, to, cabinName) {
       o.is_low_price = list.length > 1 && o.discount_percent >= LOW_PRICE_PERCENT;
     });
   }
+  // Meilleur vol direct : le moins cher sans escale, s'il y en a un
+  // (la liste est deja triee du moins cher au plus cher)
+  const bestDirect = list.find((o) => o.stops === 0);
+  list.forEach((o) => { o.is_best_direct = o === bestDirect; });
   return list;
 }
 
@@ -740,6 +569,7 @@ app.get('/api/live-range', async (req, res) => {
       try {
         const r = await searchGoogleFlights(from, to, date, null, cabin);
         const best = r.data[0];
+        const direct = r.data.find((o) => o.stops === 0); // direct le moins cher du jour
         // Meilleur prix de chaque compagnie ce jour-la
         r.data.forEach((o) => {
           String(o.airline || '').split(' + ').forEach((name) => {
@@ -756,6 +586,7 @@ app.get('/api/live-range', async (req, res) => {
           count: r.data.length,
           airlines: airlinesOf(r.data),
           best: best ? { price: best.price, airline: best.airline, stops: best.stops, departure_time: best.departure_time } : null,
+          best_direct: direct ? { price: direct.price, airline: direct.airline, departure_time: direct.departure_time } : null,
           from_cache: !!r.from_cache
         };
       } catch (err) {
@@ -767,7 +598,12 @@ app.get('/api/live-range', async (req, res) => {
 
   const priced = days.filter((d) => d.best);
   const min = priced.length ? Math.min(...priced.map((d) => d.best.price)) : null;
-  days.forEach((d) => { d.is_best_day = !!(d.best && d.best.price === min); });
+  // "Meilleur jour" n'a de sens que si au moins un autre jour est plus cher :
+  // si tous les jours ont le meme meilleur prix, on n'affiche pas le badge.
+  const samePrice = priced.length > 1 && priced.every((d) => d.best.price === min);
+  days.forEach((d) => {
+    d.is_best_day = !!(d.best && d.best.price === min && priced.length > 1 && !samePrice);
+  });
 
   res.json({
     success: true,
@@ -779,6 +615,7 @@ app.get('/api/live-range', async (req, res) => {
     // Classement des compagnies : leur meilleur prix sur toute la periode
     airlines: Object.values(byAirline).sort((a, b) => a.price - b.price),
     best_price: min,
+    same_price_every_day: samePrice,
     searches_used: days.filter((d) => !d.error && !d.from_cache).length
   });
 });
@@ -799,14 +636,8 @@ app.get('/api/live-status', async (req, res) => {
   }
 });
 
-// Ancien endpoint, limite a 300 lignes (il y a maintenant des milliers de prix)
-app.get('/api/latest-prices', (req, res) => {
-  const data = offers.slice(0, 300);
-  res.json({ success: true, demo: true, data: data, count: data.length, total: offers.length, updated_at: lastUpdate });
-});
-
 app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: 'API is working!', offers: offers.length, demo: true });
+  res.json({ success: true, message: 'API is working!' });
 });
 
 // La page du site, servie directement par Render
@@ -820,11 +651,6 @@ app.use((req, res) => {
 });
 
 // ==================== DEMARRAGE ====================
-
-generateOffers();
-
-// Nouveaux prix toutes les 6 heures
-cron.schedule('0 */6 * * *', generateOffers);
 
 // Surveillance : essai toutes les 6 h (+ au demarrage), si le serveur est reveille
 cron.schedule('30 */6 * * *', () => { runWatchCycle().catch((e) => console.log('❌ Surveillance :', e.message)); });
