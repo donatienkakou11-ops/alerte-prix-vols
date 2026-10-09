@@ -96,6 +96,7 @@
         }
         .tag.best { background: var(--best-fg); color: var(--best-bg); }
         .tag.low { background: var(--low-bg); color: var(--low-fg); }
+        .tag.direct { background: var(--accent); color: var(--card); }
         .empty { color: var(--muted); text-align: center; padding: 20px 8px; }
         .live-form { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 10px; align-items: end; margin-bottom: 12px; }
         @media (max-width: 640px) { .live-form { grid-template-columns: 1fr; } }
@@ -187,24 +188,6 @@
         <p class="sub">🟢 compagnie apparue · 🔴 compagnie absente 2 vérifications de suite · 📉 prix en baisse d'au moins 10 %</p>
         <div id="alerts"><div class="empty">Chargement...</div></div>
     </div>
-
-    <div class="demo">
-        <b>Prix de démonstration ci-dessous.</b> Ces prix sont simulés pour montrer le fonctionnement,
-        ce ne sont pas les vrais tarifs des compagnies.
-    </div>
-
-    <div class="card">
-        <h2 id="results-title">Compagnies sur ce trajet</h2>
-        <div id="results"><div class="empty">Chargement...</div></div>
-    </div>
-
-    <div class="card">
-        <h2 id="deals-title">Prix très bas en ce moment</h2>
-        <p class="sub">Offres au moins 15 % moins chères que la moyenne du trajet. Touchez une ligne pour voir le trajet.</p>
-        <div id="deals"><div class="empty">Chargement...</div></div>
-    </div>
-
-    <p class="sub" id="updated"></p>
 </div>
 
 <script>
@@ -212,8 +195,6 @@
     var fromSel = document.getElementById('from');
     var toSel = document.getElementById('to');
     var cabinSel = document.getElementById('cabin');
-    var resultsBox = document.getElementById('results');
-    var dealsBox = document.getElementById('deals');
     // Liste des villes (la même que dans server.js) : les menus se remplissent
     // tout de suite, même si le serveur met du temps à répondre.
     var cities = [{"city": "Abidjan", "country": "Côte d'Ivoire"}, {"city": "Accra", "country": "Ghana"}, {"city": "Addis-Abeba", "country": "Éthiopie"}, {"city": "Alger", "country": "Algérie"}, {"city": "Bamako", "country": "Mali"}, {"city": "Beyrouth", "country": "Liban"}, {"city": "Bruxelles", "country": "Belgique"}, {"city": "Casablanca", "country": "Maroc"}, {"city": "Conakry", "country": "Guinée"}, {"city": "Cotonou", "country": "Bénin"}, {"city": "Dakar", "country": "Sénégal"}, {"city": "Djeddah", "country": "Arabie saoudite"}, {"city": "Doha", "country": "Qatar"}, {"city": "Douala", "country": "Cameroun"}, {"city": "Dubaï", "country": "Émirats arabes unis"}, {"city": "Francfort", "country": "Allemagne"}, {"city": "Genève", "country": "Suisse"}, {"city": "Guangzhou", "country": "Chine"}, {"city": "Istanbul", "country": "Turquie"}, {"city": "Johannesburg", "country": "Afrique du Sud"}, {"city": "Kinshasa", "country": "RD Congo"}, {"city": "Lagos", "country": "Nigéria"}, {"city": "Le Caire", "country": "Égypte"}, {"city": "Libreville", "country": "Gabon"}, {"city": "Lisbonne", "country": "Portugal"}, {"city": "Lomé", "country": "Togo"}, {"city": "Londres", "country": "Royaume-Uni"}, {"city": "Madrid", "country": "Espagne"}, {"city": "Manchester", "country": "Royaume-Uni"}, {"city": "Monrovia", "country": "Libéria"}, {"city": "Montréal", "country": "Canada"}, {"city": "Nairobi", "country": "Kenya"}, {"city": "New York", "country": "États-Unis"}, {"city": "Niamey", "country": "Niger"}, {"city": "Ouagadougou", "country": "Burkina Faso"}, {"city": "Paris", "country": "France"}, {"city": "Rome", "country": "Italie"}, {"city": "Tunis", "country": "Tunisie"}];
@@ -259,89 +240,6 @@
         fillSelect(toSel, others, keep ? current : others[0].city);
     }
 
-    function offerRow(o, showRoute) {
-        var row = el('div', 'row' + (o.is_best_price && !showRoute ? ' best' : ''));
-        var left = el('div');
-        var name = el('div', 'name', o.airline);
-        if (o.is_best_price && !showRoute) name.appendChild(el('span', 'tag best', 'Meilleur prix'));
-        if (o.is_low_price) name.appendChild(el('span', 'tag low', '-' + o.discount_percent + ' %'));
-        left.appendChild(name);
-        var stops = o.stops === 0 ? 'Direct' : '1 escale à ' + o.via;
-        var meta = showRoute
-            ? o.departure_city + ' → ' + o.arrival_city + ' · ' + stops + ' · moyenne ' + money(o.route_average)
-            : stops + ' · ' + o.cabin_label + ' · aller-retour';
-        left.appendChild(el('div', 'meta', meta));
-        row.appendChild(left);
-        row.appendChild(el('div', 'price', money(o.price)));
-        return row;
-    }
-
-    function search() {
-        var from = fromSel.value, to = toSel.value;
-        if (!from || !to) return;
-        document.getElementById('results-title').textContent = from + ' → ' + to + ' (démo)';
-        message(resultsBox, 'Recherche... (le serveur peut mettre jusqu\'à une minute à démarrer)');
-
-        var path = '/api/search?from=' + encodeURIComponent(from) +
-            '&to=' + encodeURIComponent(to) + '&cabin=' + cabinSel.value;
-
-        getJson(path).then(function (res) {
-            var list = res.data || [];
-            if (list.length === 0) {
-                message(resultsBox, 'Aucune compagnie trouvée sur ce trajet.');
-                return;
-            }
-            var prices = list.map(function (o) { return o.price; });
-            var avg = Math.round(prices.reduce(function (a, b) { return a + b; }, 0) / prices.length);
-
-            var summary = el('div', 'summary');
-            [[money(prices[0]), 'Meilleur prix'], [money(avg), 'Prix moyen'], [list.length, 'Compagnies']]
-                .forEach(function (s) {
-                    var stat = el('div', 'stat');
-                    stat.appendChild(el('b', null, String(s[0])));
-                    stat.appendChild(el('span', null, s[1]));
-                    summary.appendChild(stat);
-                });
-
-            resultsBox.replaceChildren(summary);
-            list.forEach(function (o) { resultsBox.appendChild(offerRow(o, false)); });
-
-            if (res.updated_at) {
-                document.getElementById('updated').textContent =
-                    'Dernière mise à jour : ' + new Date(res.updated_at).toLocaleString('fr-FR');
-            }
-        }).catch(function () {
-            message(resultsBox, 'Les prix ne sont pas disponibles : le serveur ne répond pas ou n\'est pas à jour. Réessayez dans une minute.');
-        });
-    }
-
-    function loadDeals() {
-        document.getElementById('deals-title').textContent = 'Prix très bas au départ de ' + fromSel.value + ' (démo)';
-        getJson('/api/deals?cabin=' + cabinSel.value + '&from=' + encodeURIComponent(fromSel.value)).then(function (res) {
-            var list = res.data || [];
-            if (list.length === 0) {
-                message(dealsBox, 'Pas de prix très bas au départ de cette ville pour le moment.');
-                return;
-            }
-            dealsBox.replaceChildren();
-            list.forEach(function (o) {
-                var row = offerRow(o, true);
-                row.classList.add('clickable');
-                row.addEventListener('click', function () {
-                    fromSel.value = o.departure_city;
-                    syncArrival();
-                    toSel.value = o.arrival_city;
-                    search();
-                    loadDeals();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                });
-                dealsBox.appendChild(row);
-            });
-        }).catch(function () {
-            message(dealsBox, 'Impossible de charger les bonnes affaires.');
-        });
-    }
-
     // ==================== VRAIS PRIX ====================
     var liveBox = document.getElementById('live-results');
     var liveBtn = document.getElementById('live-btn');
@@ -373,6 +271,7 @@
         var left = el('div');
         var name = el('div', 'name', o.airline);
         if (o.is_best_price) name.appendChild(el('span', 'tag best', 'Meilleur prix'));
+        if (o.is_best_direct) name.appendChild(el('span', 'tag direct', 'Meilleur direct'));
         if (o.is_low_price) name.appendChild(el('span', 'tag low', '-' + o.discount_percent + ' %'));
         left.appendChild(name);
         var stops = o.stops === 0 ? 'Direct' : o.stops + ' escale' + (o.stops > 1 ? 's' : '') + (o.via ? ' (' + o.via + ')' : '');
@@ -415,6 +314,16 @@
             var info = el('p', 'sub', fromSel.value + ' → ' + toSel.value + ' · ' + list.length + ' vols · prix ' + body.trip +
                 ' par personne, convertis de l\'euro (1 € = 655,957 FCFA)' + (body.from_cache ? ' · résultat déjà en mémoire' : ''));
             liveBox.replaceChildren(info);
+
+            // Le moins cher n'est pas toujours le meilleur vol : on rappelle le direct
+            var cheapest = list[0];
+            var direct = list.filter(function (o) { return o.is_best_direct; })[0];
+            if (direct && direct !== cheapest) {
+                liveBox.appendChild(el('p', 'sub', 'Meilleur direct : ' + direct.airline + ' à ' + money(direct.price) +
+                    ' (' + duration(direct.duration_minutes) + '), soit ' + money(direct.price - cheapest.price) + ' de plus que le moins cher.'));
+            } else if (!direct) {
+                liveBox.appendChild(el('p', 'sub', 'Aucun vol direct ce jour-là.'));
+            }
             list.forEach(function (o) { liveBox.appendChild(liveRow(o, body.trip)); });
 
             if (body.google_flights_url) {
@@ -482,6 +391,9 @@
             if (!res.ok) { message(rangeBox, body.error || 'Erreur pendant la recherche.'); return; }
             var info = el('p', 'sub', fromSel.value + ' → ' + toSel.value + ' · aller simple · ' + body.searches_used + ' recherche(s) utilisée(s). Touchez un jour pour voir tous ses vols.');
             rangeBox.replaceChildren(info);
+            if (body.same_price_every_day) {
+                rangeBox.appendChild(el('p', 'sub', 'Le meilleur prix est le même tous les jours : choisissez selon l\'horaire ou la compagnie.'));
+            }
 
             // 1) Classement des compagnies sur la periode
             var airlines = body.airlines || [];
@@ -522,7 +434,8 @@
                 if (d.error) meta = 'Erreur pour ce jour';
                 else if (!d.best) meta = 'Aucun vol trouvé ce jour-là';
                 else meta = d.count + ' vol' + (d.count > 1 ? 's' : '') + ' · ' + d.airlines.length + ' compagnie' + (d.airlines.length > 1 ? 's' : '') +
-                    ' · moins cher : ' + d.best.airline + (d.best.stops === 0 ? ' (direct)' : '');
+                    ' · moins cher : ' + d.best.airline + (d.best.stops === 0 ? ' (direct)' : '') +
+                    (d.best.stops !== 0 && d.best_direct ? ' · direct dès ' + money(d.best_direct.price) + ' (' + d.best_direct.airline + ')' : '');
                 left.appendChild(el('div', 'meta', meta));
                 row.appendChild(left);
                 row.appendChild(el('div', 'price', d.best ? money(d.best.price) : '—'));
@@ -634,8 +547,6 @@
             syncArrival();
             toSel.value = r[1];
             clearLive();
-            search();
-            loadDeals();
             markChips();
         });
         chipsBox.appendChild(b);
@@ -650,23 +561,17 @@
     cabinSel.addEventListener('change', clearLive);
     document.getElementById('swap').addEventListener('click', clearLive);
 
-    fromSel.addEventListener('change', function () { syncArrival(); search(); loadDeals(); });
-    toSel.addEventListener('change', search);
-    cabinSel.addEventListener('change', function () { search(); loadDeals(); });
+    fromSel.addEventListener('change', function () { syncArrival(); markChips(); });
     document.getElementById('swap').addEventListener('click', function () {
         var oldFrom = fromSel.value, oldTo = toSel.value;
         fromSel.value = oldTo;
         syncArrival();
         toSel.value = oldFrom;
-        search();
-        loadDeals();
     });
 
     fillSelect(fromSel, cities, 'Abidjan');
     syncArrival();
     toSel.value = 'Paris';
-    search();
-    loadDeals();
     loadLiveStatus();
     loadWatch();
     markChips();
